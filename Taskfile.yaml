@@ -1,0 +1,194 @@
+version: "3"
+
+vars:
+  CLUSTER_NAME:
+    sh: yq '.cluster_name' vars.yaml
+  NODE_IP:
+    sh: yq '.node_ip // ""' vars.yaml
+  DISK:
+    sh: yq '.disk' vars.yaml
+  INTERFACE:
+    sh: yq '.interface' vars.yaml
+  TALOS_VERSION:
+    sh: yq '.talos_version' vars.yaml
+  KUBERNETES_VERSION:
+    sh: yq '.kubernetes_version' vars.yaml
+  CONTROL_PLANE_PORT:
+    sh: yq '.control_plane_port' vars.yaml
+
+tasks:
+  # --- Internal helpers ---
+
+  _require-node-ip:
+    internal: true
+    silent: true
+    preconditions:
+      - sh: '[ -n "{{.NODE_IP}}" ]'
+        msg: "NODE_IP is required. Set it in vars.yaml or run: task set-node NODE_IP=x.x.x.x"
+
+  set-node:
+    desc: Save the node IP for subsequent commands
+    cmds:
+      - yq -i '.node_ip = "{{.NODE_IP}}"' vars.yaml
+      - echo "Node IP set to {{.NODE_IP}}"
+    preconditions:
+      - sh: '[ -n "{{.NODE_IP}}" ]'
+        msg: "Usage: task set-node NODE_IP=x.x.x.x"
+
+  # --- Initial Setup ---
+
+  generate:
+    internal: true
+    desc: Generate fresh secrets and machine configs
+    deps: [_require-node-ip]
+    cmds:
+      - mkdir -p generated
+      - talosctl gen secrets -o generated/secrets.yaml --force
+      - talosctl gen config
+          --with-secrets generated/secrets.yaml
+          --output generated/
+          --force
+          {{.CLUSTER_NAME}}
+          https://{{.NODE_IP}}:{{.CONTROL_PLANE_PORT}}
+      - talosctl --talosconfig generated/talosconfig
+          config endpoint {{.NODE_IP}}
+      - talosctl --talosconfig generated/talosconfig
+          config node {{.NODE_IP}}
+      - |
+        if [ -f ~/.talos/config ]; then
+          yq -i 'del(.contexts.{{.CLUSTER_NAME}})' ~/.talos/config
+        fi
+      - talosctl config merge generated/talosconfig
+
+  patch:
+    internal: true
+    desc: Apply patches to generated configs
+    cmds:
+      - talosctl machineconfig patch generated/controlplane.yaml
+          --patch @patches/controlplane.yaml
+          --patch @patches/common.yaml
+          --output generated/controlplane.yaml
+
+  apply:
+    desc: Apply config to the node (insecure, for first install)
+    deps: [_require-node-ip]
+    cmds:
+      - talosctl apply-config --insecure
+          --nodes {{.NODE_IP}}
+          --file generated/controlplane.yaml
+
+  bootstrap:
+    internal: true
+    desc: Bootstrap etcd (run ONCE on initial setup)
+    deps: [_require-node-ip]
+    cmds:
+      - talosctl bootstrap
+          --context {{.CLUSTER_NAME}}
+
+  kubeconfig:
+    desc: Retrieve kubeconfig and merge into ~/.kube/config
+    deps: [_require-node-ip]
+    cmds:
+      - talosctl kubeconfig
+          --context {{.CLUSTER_NAME}}
+
+  setup:
+    desc: "Full initial setup: generate, patch, apply, bootstrap, kubeconfig"
+    preconditions:
+      - sh: '[ -n "{{.NODE_IP}}" ]'
+        msg: "Usage: task setup NODE_IP=x.x.x.x"
+    cmds:
+      - yq -i '.node_ip = "{{.NODE_IP}}"' vars.yaml
+      - task: generate
+      - task: patch
+      - task: apply
+      - echo "Waiting for node to install and reboot..."
+      - |
+        echo "Waiting for Talos API to become reachable..."
+        until talosctl --context {{.CLUSTER_NAME}} version >/dev/null 2>&1; do
+          sleep 5
+        done
+        echo "Talos API is up."
+      - task: bootstrap
+      - echo "Waiting for cluster to become healthy..."
+      - talosctl health
+          --context {{.CLUSTER_NAME}}
+          --wait-timeout 5m
+      - task: kubeconfig
+      - echo "Cluster is ready! Use 'kubectl --context admin@{{.CLUSTER_NAME}} get nodes' to verify."
+
+  # --- Day 2: Ongoing Management ---
+
+  upgrade-talos:
+    desc: Upgrade Talos OS on the node
+    deps: [_require-node-ip]
+    cmds:
+      - talosctl upgrade
+          --context {{.CLUSTER_NAME}}
+          --image ghcr.io/siderolabs/installer:{{.TALOS_VERSION}}
+
+  upgrade-k8s:
+    desc: Upgrade Kubernetes version
+    deps: [_require-node-ip]
+    cmds:
+      - talosctl upgrade-k8s
+          --context {{.CLUSTER_NAME}}
+          --to {{.KUBERNETES_VERSION}}
+
+  reconfigure:
+    desc: Re-patch and apply config changes (edit patches first, then run this)
+    deps: [_require-node-ip]
+    cmds:
+      - task: patch
+      - talosctl apply-config
+          --context {{.CLUSTER_NAME}}
+          --file generated/controlplane.yaml
+
+  reboot:
+    desc: Reboot the node
+    deps: [_require-node-ip]
+    cmds:
+      - talosctl reboot
+          --context {{.CLUSTER_NAME}}
+
+  reset:
+    desc: Wipe the node and start over (DESTRUCTIVE)
+    prompt: This will WIPE the node and destroy all data. Are you sure?
+    deps: [_require-node-ip]
+    cmds:
+      - talosctl reset
+          --context {{.CLUSTER_NAME}}
+          --graceful=false
+          --reboot
+
+  # --- Utility ---
+
+  status:
+    desc: Show node health and cluster status
+    deps: [_require-node-ip]
+    cmds:
+      - talosctl health
+          --context {{.CLUSTER_NAME}}
+      - kubectl --context admin@{{.CLUSTER_NAME}} get nodes -o wide
+
+  dashboard:
+    desc: Open Talos dashboard
+    deps: [_require-node-ip]
+    interactive: true
+    cmds:
+      - talosctl dashboard
+          --context {{.CLUSTER_NAME}}
+
+  disks:
+    desc: List disks on the node (useful before first install)
+    deps: [_require-node-ip]
+    cmds:
+      - talosctl get disks
+          --insecure --nodes {{.NODE_IP}}
+
+  links:
+    desc: List network interfaces on the node
+    deps: [_require-node-ip]
+    cmds:
+      - talosctl get links
+          --insecure --nodes {{.NODE_IP}}

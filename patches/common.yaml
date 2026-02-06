@@ -1,0 +1,7 @@
+machine:
+  install:
+    disk: /dev/sda
+  network:
+    interfaces:
+      - interface: eno1
+        dhcp: true
