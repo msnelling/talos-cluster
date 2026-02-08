@@ -2,6 +2,6 @@ cluster_name: lenovo
 node_ip: "10.1.1.140"
 disk: /dev/sda
 interface: eno1
-talos_version: v1.12.2
+talos_version: v1.12.3
 kubernetes_version: v1.35.0
 control_plane_port: 6443
