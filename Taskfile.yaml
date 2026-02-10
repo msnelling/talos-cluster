@@ -15,6 +15,10 @@ vars:
     sh: yq '.kubernetes_version' vars.yaml
   CONTROL_PLANE_PORT:
     sh: yq '.control_plane_port' vars.yaml
+  TAILSCALE_AUTH_KEY:
+    sh: yq '.tailscale_auth_key' vars.yaml
+  TAILSCALE_ROUTES:
+    sh: yq '.tailscale_routes // ""' vars.yaml
 
 tasks:
   # --- Internal helpers ---
@@ -80,10 +84,21 @@ tasks:
         echo "Schematic ID: ${SCHEMATIC_ID}"
         INSTALL_IMAGE="factory.talos.dev/installer-secureboot/${SCHEMATIC_ID}:{{.TALOS_VERSION}}"
         yq -n '.machine.install.image = "'"${INSTALL_IMAGE}"'"' > generated/install-image-patch.yaml
-        talosctl machineconfig patch generated/controlplane.yaml \
-          --patch @patches/controlplane.yaml \
-          --patch @patches/common.yaml \
-          --patch @generated/install-image-patch.yaml \
+      - |
+        yq -n '
+          .apiVersion = "v1alpha1" |
+          .kind = "ExtensionServiceConfig" |
+          .name = "tailscale" |
+          .environment = ["TS_AUTHKEY={{.TAILSCALE_AUTH_KEY}}"]
+        ' > generated/tailscale-patch.yaml
+        if [ -n "{{.TAILSCALE_ROUTES}}" ]; then
+          yq -i '.environment += ["TS_ROUTES={{.TAILSCALE_ROUTES}}"]' generated/tailscale-patch.yaml
+        fi
+      - talosctl machineconfig patch generated/controlplane.yaml
+          --patch @patches/controlplane.yaml
+          --patch @patches/common.yaml
+          --patch @generated/install-image-patch.yaml
+          --patch @generated/tailscale-patch.yaml
           --output generated/controlplane.yaml
 
   apply:

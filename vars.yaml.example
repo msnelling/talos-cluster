@@ -1,7 +1,9 @@
 cluster_name: lenovo
-node_ip: "10.1.1.140"
+node_ip: ""
 disk: /dev/sda
 interface: eno1
 talos_version: v1.12.3
 kubernetes_version: v1.35.0
 control_plane_port: 6443
+tailscale_auth_key: "tskey-auth-..."
+tailscale_routes: "10.1.1.0/24"
