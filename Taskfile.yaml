@@ -37,6 +37,17 @@ tasks:
 
   # --- Initial Setup ---
 
+  download:
+    desc: Download Talos secure-boot ISO from Image Factory
+    cmds:
+      - mkdir -p downloads
+      - |
+        SCHEMATIC_ID=$(curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id')
+        echo "Schematic ID: ${SCHEMATIC_ID}"
+        curl -Lo downloads/metal-amd64-secureboot.iso \
+          "https://factory.talos.dev/image/${SCHEMATIC_ID}/{{.TALOS_VERSION}}/metal-amd64-secureboot.iso"
+        echo "Downloaded downloads/metal-amd64-secureboot.iso"
+
   generate:
     internal: true
     desc: Generate fresh secrets and machine configs
@@ -64,9 +75,15 @@ tasks:
     internal: true
     desc: Apply patches to generated configs
     cmds:
-      - talosctl machineconfig patch generated/controlplane.yaml
-          --patch @patches/controlplane.yaml
-          --patch @patches/common.yaml
+      - |
+        SCHEMATIC_ID=$(curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id')
+        echo "Schematic ID: ${SCHEMATIC_ID}"
+        INSTALL_IMAGE="factory.talos.dev/installer-secureboot/${SCHEMATIC_ID}:{{.TALOS_VERSION}}"
+        yq -n '.machine.install.image = "'"${INSTALL_IMAGE}"'"' > generated/install-image-patch.yaml
+        talosctl machineconfig patch generated/controlplane.yaml \
+          --patch @patches/controlplane.yaml \
+          --patch @patches/common.yaml \
+          --patch @generated/install-image-patch.yaml \
           --output generated/controlplane.yaml
 
   apply:
@@ -94,6 +111,7 @@ tasks:
 
   setup:
     desc: "Full initial setup: generate, patch, apply, bootstrap, kubeconfig"
+    interactive: true
     preconditions:
       - sh: '[ -n "{{.NODE_IP}}" ]'
         msg: "Usage: task setup NODE_IP=x.x.x.x"
@@ -102,7 +120,8 @@ tasks:
       - task: generate
       - task: patch
       - task: apply
-      - echo "Waiting for node to install and reboot..."
+      - echo "Remove the bootable ISO/USB and press Enter to continue..."
+      - read -r
       - |
         echo "Waiting for Talos API to become reachable..."
         until talosctl --context {{.CLUSTER_NAME}} version >/dev/null 2>&1; do
@@ -123,9 +142,12 @@ tasks:
     desc: Upgrade Talos OS on the node
     deps: [_require-node-ip]
     cmds:
-      - talosctl upgrade
-          --context {{.CLUSTER_NAME}}
-          --image ghcr.io/siderolabs/installer:{{.TALOS_VERSION}}
+      - |
+        SCHEMATIC_ID=$(curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id')
+        echo "Schematic ID: ${SCHEMATIC_ID}"
+        talosctl upgrade \
+          --context {{.CLUSTER_NAME}} \
+          --image "factory.talos.dev/installer-secureboot/${SCHEMATIC_ID}:{{.TALOS_VERSION}}"
 
   upgrade-k8s:
     desc: Upgrade Kubernetes version
