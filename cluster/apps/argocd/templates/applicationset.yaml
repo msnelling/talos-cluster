@@ -3,6 +3,9 @@ kind: ApplicationSet
 metadata:
   name: cluster-apps
   namespace: argocd
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
 spec:
   goTemplate: true
   generators:
@@ -15,16 +18,16 @@ spec:
             exclude: true
   template:
     metadata:
-      name: "{{.path.basename}}"
+      name: "{{ `{{.path.basename}}` }}"
     spec:
       project: cluster
       source:
         repoURL: git@github.com:xmple/talos-cluster.git
         targetRevision: main
-        path: "{{.path}}"
+        path: "{{ `{{.path.path}}` }}"
       destination:
         server: https://kubernetes.default.svc
-        namespace: "{{.path.basename}}"
+        namespace: "{{ `{{.path.basename}}` }}"
       syncPolicy:
         automated:
           prune: true

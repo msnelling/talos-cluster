@@ -5,10 +5,3 @@ argo-cd:
   configs:
     params:
       server.insecure: true
-    repositories:
-      talos-cluster:
-        url: git@github.com:xmple/talos-cluster.git
-        type: git
-        sshPrivateKeySecret:
-          name: argocd-repo-key
-          key: sshPrivateKey

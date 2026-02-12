@@ -177,6 +177,7 @@ tasks:
     desc: Install or upgrade Cilium CNI
     deps: [_require-helm]
     cmds:
+      - helm repo add cilium https://helm.cilium.io/ --force-update
       - helm dependency build cluster/apps/cilium
       - helm upgrade --install cilium cluster/apps/cilium
           --namespace kube-system
@@ -186,6 +187,7 @@ tasks:
     desc: Install or upgrade Traefik
     deps: [_require-helm]
     cmds:
+      - helm repo add traefik https://traefik.github.io/charts --force-update
       - helm dependency build cluster/apps/traefik
       - helm upgrade --install traefik cluster/apps/traefik
           --namespace traefik
@@ -201,6 +203,7 @@ tasks:
           --namespace cert-manager
           --from-literal=api-token={{.CLOUDFLARE_API_TOKEN}}
           --dry-run=client -o yaml | kubectl apply -f -
+      - helm repo add jetstack https://charts.jetstack.io --force-update
       - helm dependency build cluster/apps/cert-manager
       - helm upgrade --install cert-manager cluster/apps/cert-manager
           --namespace cert-manager
@@ -212,14 +215,22 @@ tasks:
     cmds:
       - kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
       - |
-        if ! kubectl get secret argocd-repo-key -n argocd >/dev/null 2>&1; then
-          echo "ERROR: argocd-repo-key secret not found in argocd namespace."
-          echo "Create it with:"
+        if [ ! -f argocd-repo-key ]; then
+          echo "ERROR: argocd-repo-key file not found."
+          echo "Generate it with:"
           echo "  ssh-keygen -t ed25519 -f argocd-repo-key -N \"\""
-          echo "  kubectl create secret generic argocd-repo-key --namespace argocd --from-file=sshPrivateKey=argocd-repo-key"
-          echo "Then add the public key as a deploy key in the GitHub repo settings."
+          echo "Then add argocd-repo-key.pub as a deploy key in the GitHub repo settings."
           exit 1
         fi
+      - |
+        kubectl create secret generic argocd-repo-key \
+          --namespace argocd \
+          --from-literal=type=git \
+          --from-literal=url=git@github.com:xmple/talos-cluster.git \
+          --from-file=sshPrivateKey=argocd-repo-key \
+          --dry-run=client -o yaml | kubectl apply -f -
+      - kubectl label secret argocd-repo-key -n argocd argocd.argoproj.io/secret-type=repository --overwrite
+      - helm repo add argo https://argoproj.github.io/argo-helm --force-update
       - helm dependency build cluster/apps/argocd
       - helm upgrade --install argocd cluster/apps/argocd
           --namespace argocd
