@@ -1,1 +1,1 @@
-{"appName": "argocd", "namespace": "argocd", "path": "cluster/apps/argocd"}
+{"appName": "argocd", "namespace": "argocd", "chartPath": "cluster/apps/argocd"}

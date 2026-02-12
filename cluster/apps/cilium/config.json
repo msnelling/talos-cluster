@@ -1,1 +1,1 @@
-{"appName": "cilium", "namespace": "kube-system", "path": "cluster/apps/cilium"}
+{"appName": "cilium", "namespace": "kube-system", "chartPath": "cluster/apps/cilium"}
