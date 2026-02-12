@@ -7,3 +7,9 @@ kubernetes_version: v1.35.0
 control_plane_port: 6443
 tailscale_auth_key: "tskey-auth-..."
 tailscale_routes: "10.1.1.0/24"
+cilium_version: "1.19.0"
+loadbalancer_ip: "10.1.1.60"
+domain: "example.com"
+traefik_version: "38.0.2"
+cert_manager_version: "v1.19.3"
+cloudflare_api_token: "your-cloudflare-api-token"

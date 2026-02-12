@@ -5,10 +5,6 @@ vars:
     sh: yq '.cluster_name' vars.yaml
   NODE_IP:
     sh: yq '.node_ip // ""' vars.yaml
-  DISK:
-    sh: yq '.disk' vars.yaml
-  INTERFACE:
-    sh: yq '.interface' vars.yaml
   TALOS_VERSION:
     sh: yq '.talos_version' vars.yaml
   KUBERNETES_VERSION:
@@ -21,10 +17,6 @@ vars:
     sh: yq '.tailscale_routes // ""' vars.yaml
   CILIUM_VERSION:
     sh: yq '.cilium_version' vars.yaml
-  LOADBALANCER_IP:
-    sh: yq '.loadbalancer_ip' vars.yaml
-  DOMAIN:
-    sh: yq '.domain' vars.yaml
   TRAEFIK_VERSION:
     sh: yq '.traefik_version' vars.yaml
   CERT_MANAGER_VERSION:
@@ -33,7 +25,6 @@ vars:
     sh: yq '.cloudflare_api_token' vars.yaml
 
 tasks:
-  # --- Internal helpers ---
 
   _require-node-ip:
     internal: true
@@ -41,6 +32,13 @@ tasks:
     preconditions:
       - sh: '[ -n "{{.NODE_IP}}" ]'
         msg: "NODE_IP is required. Set it in vars.yaml or run: task set-node NODE_IP=x.x.x.x"
+
+  _require-helm:
+    internal: true
+    silent: true
+    preconditions:
+      - sh: command -v helm
+        msg: "helm is required. Install with: brew install helm"
 
   set-node:
     desc: Save the node IP for subsequent commands
@@ -55,18 +53,18 @@ tasks:
 
   download:
     desc: Download Talos secure-boot ISO from Image Factory
+    vars:
+      SCHEMATIC_ID:
+        sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
     cmds:
       - mkdir -p downloads
-      - |
-        SCHEMATIC_ID=$(curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id')
-        echo "Schematic ID: ${SCHEMATIC_ID}"
-        curl -Lo downloads/metal-amd64-secureboot.iso \
-          "https://factory.talos.dev/image/${SCHEMATIC_ID}/{{.TALOS_VERSION}}/metal-amd64-secureboot.iso"
-        echo "Downloaded downloads/metal-amd64-secureboot.iso"
+      - 'echo "Schematic ID: {{.SCHEMATIC_ID}}"'
+      - curl -Lo downloads/metal-amd64-secureboot.iso
+          "https://factory.talos.dev/image/{{.SCHEMATIC_ID}}/{{.TALOS_VERSION}}/metal-amd64-secureboot.iso"
+      - echo "Downloaded downloads/metal-amd64-secureboot.iso"
 
   generate:
     internal: true
-    desc: Generate fresh secrets and machine configs
     deps: [_require-node-ip]
     cmds:
       - mkdir -p generated
@@ -89,13 +87,21 @@ tasks:
 
   patch:
     internal: true
-    desc: Apply patches to generated configs
+    vars:
+      SCHEMATIC_ID:
+        sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
+      DISK:
+        sh: yq '.disk' vars.yaml
+      INTERFACE:
+        sh: yq '.interface' vars.yaml
     cmds:
-      - |
-        SCHEMATIC_ID=$(curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id')
-        echo "Schematic ID: ${SCHEMATIC_ID}"
-        INSTALL_IMAGE="factory.talos.dev/installer-secureboot/${SCHEMATIC_ID}:{{.TALOS_VERSION}}"
-        yq -n '.machine.install.image = "'"${INSTALL_IMAGE}"'"' > generated/install-image-patch.yaml
+      - yq -n '.machine.install.image = "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"'
+          > generated/install-image-patch.yaml
+      - yq -n '
+          .machine.install.disk = "{{.DISK}}" |
+          .machine.network.interfaces[0].interface = "{{.INTERFACE}}" |
+          .machine.network.interfaces[0].dhcp = true
+        ' > generated/common-patch.yaml
       - |
         yq -n '
           .apiVersion = "v1alpha1" |
@@ -108,8 +114,8 @@ tasks:
         fi
       - talosctl machineconfig patch generated/controlplane.yaml
           --patch @patches/controlplane.yaml
-          --patch @patches/common.yaml
           --patch @patches/cni.yaml
+          --patch @generated/common-patch.yaml
           --patch @generated/install-image-patch.yaml
           --patch @generated/tailscale-patch.yaml
           --output generated/controlplane.yaml
@@ -124,7 +130,6 @@ tasks:
 
   bootstrap:
     internal: true
-    desc: Bootstrap etcd (run ONCE on initial setup)
     deps: [_require-node-ip]
     cmds:
       - talosctl bootstrap
@@ -140,11 +145,9 @@ tasks:
   setup:
     desc: "Full initial setup: generate, patch, apply, bootstrap, kubeconfig"
     interactive: true
-    preconditions:
-      - sh: '[ -n "{{.NODE_IP}}" ]'
-        msg: "Usage: task setup NODE_IP=x.x.x.x"
     cmds:
-      - yq -i '.node_ip = "{{.NODE_IP}}"' vars.yaml
+      - task: set-node
+        vars: { NODE_IP: "{{.NODE_IP}}" }
       - task: generate
       - task: patch
       - task: apply
@@ -169,9 +172,7 @@ tasks:
 
   cilium:
     desc: Install or upgrade Cilium CNI
-    preconditions:
-      - sh: command -v helm
-        msg: "helm is required. Install with: brew install helm"
+    deps: [_require-helm]
     cmds:
       - helm repo add cilium https://helm.cilium.io/ --force-update
       - helm upgrade --install cilium cilium/cilium
@@ -183,9 +184,7 @@ tasks:
 
   traefik:
     desc: Install or upgrade Traefik
-    preconditions:
-      - sh: command -v helm
-        msg: "helm is required. Install with: brew install helm"
+    deps: [_require-helm]
     cmds:
       - helm repo add traefik https://traefik.github.io/charts --force-update
       - helm upgrade --install traefik traefik/traefik
@@ -197,9 +196,7 @@ tasks:
 
   cert-manager:
     desc: Install or upgrade cert-manager
-    preconditions:
-      - sh: command -v helm
-        msg: "helm is required. Install with: brew install helm"
+    deps: [_require-helm]
     cmds:
       - kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
       - kubectl create secret generic cloudflare-api-token
@@ -219,13 +216,13 @@ tasks:
   upgrade-talos:
     desc: Upgrade Talos OS on the node
     deps: [_require-node-ip]
+    vars:
+      SCHEMATIC_ID:
+        sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
     cmds:
-      - |
-        SCHEMATIC_ID=$(curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id')
-        echo "Schematic ID: ${SCHEMATIC_ID}"
-        talosctl upgrade \
-          --context {{.CLUSTER_NAME}} \
-          --image "factory.talos.dev/installer-secureboot/${SCHEMATIC_ID}:{{.TALOS_VERSION}}"
+      - talosctl upgrade
+          --context {{.CLUSTER_NAME}}
+          --image "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"
 
   upgrade-k8s:
     desc: Upgrade Kubernetes version
