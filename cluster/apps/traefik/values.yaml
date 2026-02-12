@@ -4,6 +4,9 @@ providers:
   kubernetesIngress:
     enabled: false
 
+gateway:
+  enabled: false
+
 service:
   spec:
     loadBalancerClass: io.cilium/l2-announcer
