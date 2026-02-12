@@ -19,6 +19,8 @@ vars:
     sh: yq '.tailscale_auth_key' vars.yaml
   TAILSCALE_ROUTES:
     sh: yq '.tailscale_routes // ""' vars.yaml
+  CILIUM_VERSION:
+    sh: yq '.cilium_version' vars.yaml
 
 tasks:
   # --- Internal helpers ---
@@ -97,6 +99,7 @@ tasks:
       - talosctl machineconfig patch generated/controlplane.yaml
           --patch @patches/controlplane.yaml
           --patch @patches/common.yaml
+          --patch @patches/cni.yaml
           --patch @generated/install-image-patch.yaml
           --patch @generated/tailscale-patch.yaml
           --output generated/controlplane.yaml
@@ -144,12 +147,26 @@ tasks:
         done
         echo "Talos API is up."
       - task: bootstrap
+      - task: kubeconfig
+      - task: cilium
       - echo "Waiting for cluster to become healthy..."
       - talosctl health
           --context {{.CLUSTER_NAME}}
           --wait-timeout 5m
-      - task: kubeconfig
       - echo "Cluster is ready! Use 'kubectl --context admin@{{.CLUSTER_NAME}} get nodes' to verify."
+
+  cilium:
+    desc: Install or upgrade Cilium CNI
+    preconditions:
+      - sh: command -v helm
+        msg: "helm is required. Install with: brew install helm"
+    cmds:
+      - helm repo add cilium https://helm.cilium.io/ --force-update
+      - helm upgrade --install cilium cilium/cilium
+          --namespace kube-system
+          --version {{.CILIUM_VERSION}}
+          --values cluster/apps/cilium/values.yaml
+          --wait --timeout 5m
 
   # --- Day 2: Ongoing Management ---
 
@@ -203,10 +220,14 @@ tasks:
   status:
     desc: Show node health and cluster status
     deps: [_require-node-ip]
+    preconditions:
+      - sh: command -v cilium
+        msg: "cilium CLI is required. Install with: brew install cilium-cli"
     cmds:
       - talosctl health
           --context {{.CLUSTER_NAME}}
       - kubectl --context admin@{{.CLUSTER_NAME}} get nodes -o wide
+      - cilium status --context admin@{{.CLUSTER_NAME}}
 
   dashboard:
     desc: Open Talos dashboard
