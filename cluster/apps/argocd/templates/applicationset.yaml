@@ -12,22 +12,20 @@ spec:
     - git:
         repoURL: git@github.com:xmple/talos-cluster.git
         revision: main
-        directories:
-          - path: cluster/apps/*
-          - path: cluster/apps/argocd
-            exclude: true
+        files:
+          - path: cluster/apps/*/config.json
   template:
     metadata:
-      name: "{{ `{{.path.basename}}` }}"
+      name: "{{ `{{.appName}}` }}"
     spec:
       project: cluster
       source:
         repoURL: git@github.com:xmple/talos-cluster.git
         targetRevision: main
-        path: "{{ `{{.path.path}}` }}"
+        path: "{{ `{{.path}}` }}"
       destination:
         server: https://kubernetes.default.svc
-        namespace: "{{ `{{.path.basename}}` }}"
+        namespace: "{{ `{{.namespace}}` }}"
       syncPolicy:
         automated:
           prune: true
