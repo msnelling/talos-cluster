@@ -35,3 +35,9 @@ k8sServicePort: 7445
 
 operator:
   replicas: 1
+
+l2announcements:
+  enabled: true
+
+externalIPs:
+  enabled: true

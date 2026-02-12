@@ -21,6 +21,16 @@ vars:
     sh: yq '.tailscale_routes // ""' vars.yaml
   CILIUM_VERSION:
     sh: yq '.cilium_version' vars.yaml
+  LOADBALANCER_IP:
+    sh: yq '.loadbalancer_ip' vars.yaml
+  DOMAIN:
+    sh: yq '.domain' vars.yaml
+  TRAEFIK_VERSION:
+    sh: yq '.traefik_version' vars.yaml
+  CERT_MANAGER_VERSION:
+    sh: yq '.cert_manager_version' vars.yaml
+  CLOUDFLARE_API_TOKEN:
+    sh: yq '.cloudflare_api_token' vars.yaml
 
 tasks:
   # --- Internal helpers ---
@@ -149,6 +159,8 @@ tasks:
       - task: bootstrap
       - task: kubeconfig
       - task: cilium
+      - task: traefik
+      - task: cert-manager
       - echo "Waiting for cluster to become healthy..."
       - talosctl health
           --context {{.CLUSTER_NAME}}
@@ -167,6 +179,40 @@ tasks:
           --version {{.CILIUM_VERSION}}
           --values cluster/apps/cilium/values.yaml
           --wait --timeout 5m
+      - kubectl apply -k cluster/apps/cilium/resources/
+
+  traefik:
+    desc: Install or upgrade Traefik
+    preconditions:
+      - sh: command -v helm
+        msg: "helm is required. Install with: brew install helm"
+    cmds:
+      - helm repo add traefik https://traefik.github.io/charts --force-update
+      - helm upgrade --install traefik traefik/traefik
+          --namespace traefik
+          --create-namespace
+          --version {{.TRAEFIK_VERSION}}
+          --values cluster/apps/traefik/values.yaml
+          --wait --timeout 5m
+
+  cert-manager:
+    desc: Install or upgrade cert-manager
+    preconditions:
+      - sh: command -v helm
+        msg: "helm is required. Install with: brew install helm"
+    cmds:
+      - kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
+      - kubectl create secret generic cloudflare-api-token
+          --namespace cert-manager
+          --from-literal=api-token={{.CLOUDFLARE_API_TOKEN}}
+          --dry-run=client -o yaml | kubectl apply -f -
+      - helm repo add jetstack https://charts.jetstack.io --force-update
+      - helm upgrade --install cert-manager jetstack/cert-manager
+          --namespace cert-manager
+          --version {{.CERT_MANAGER_VERSION}}
+          --values cluster/apps/cert-manager/values.yaml
+          --wait --timeout 5m
+      - kubectl apply -k cluster/apps/cert-manager/resources/
 
   # --- Day 2: Ongoing Management ---
 
