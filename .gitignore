@@ -2,3 +2,8 @@ generated/
 downloads/
 kubeconfig
 vars.yaml
+argocd-repo-key
+argocd-repo-key.pub
+**/charts/
+**/Chart.lock
+node_modules/
