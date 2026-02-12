@@ -1,12 +1,13 @@
-providers:
-  kubernetesGateway:
-    enabled: true
-  kubernetesIngress:
+traefik:
+  providers:
+    kubernetesGateway:
+      enabled: true
+    kubernetesIngress:
+      enabled: false
+
+  gateway:
     enabled: false
 
-gateway:
-  enabled: false
-
-service:
-  spec:
-    loadBalancerClass: io.cilium/l2-announcer
+  service:
+    spec:
+      loadBalancerClass: io.cilium/l2-announcer

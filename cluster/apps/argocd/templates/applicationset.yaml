@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-apps
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - git:
+        repoURL: git@github.com:xmple/talos-cluster.git
+        revision: main
+        directories:
+          - path: cluster/apps/*
+          - path: cluster/apps/argocd
+            exclude: true
+  template:
+    metadata:
+      name: "{{.path.basename}}"
+    spec:
+      project: cluster
+      source:
+        repoURL: git@github.com:xmple/talos-cluster.git
+        targetRevision: main
+        path: "{{.path}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{.path.basename}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

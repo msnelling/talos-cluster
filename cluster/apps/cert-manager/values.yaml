@@ -1,2 +1,3 @@
-crds:
-  enabled: true
+cert-manager:
+  crds:
+    enabled: true
