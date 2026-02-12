@@ -3,9 +3,6 @@ kind: AppProject
 metadata:
   name: cluster
   namespace: argocd
-  annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "0"
 spec:
   description: Cluster infrastructure apps
   sourceRepos:

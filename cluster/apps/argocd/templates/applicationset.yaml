@@ -3,9 +3,6 @@ kind: ApplicationSet
 metadata:
   name: cluster-apps
   namespace: argocd
-  annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "1"
 spec:
   goTemplate: true
   generators:

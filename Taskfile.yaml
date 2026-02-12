@@ -181,6 +181,7 @@ tasks:
       - helm dependency build cluster/apps/cilium
       - helm upgrade --install cilium cluster/apps/cilium
           --namespace kube-system
+          --force-conflicts
           --wait --timeout 5m
 
   traefik:
@@ -192,6 +193,7 @@ tasks:
       - helm upgrade --install traefik cluster/apps/traefik
           --namespace traefik
           --create-namespace
+          --force-conflicts
           --wait --timeout 5m
 
   cert-manager:
@@ -207,6 +209,7 @@ tasks:
       - helm dependency build cluster/apps/cert-manager
       - helm upgrade --install cert-manager cluster/apps/cert-manager
           --namespace cert-manager
+          --force-conflicts
           --wait --timeout 5m
 
   argocd:
@@ -234,6 +237,7 @@ tasks:
       - helm dependency build cluster/apps/argocd
       - helm upgrade --install argocd cluster/apps/argocd
           --namespace argocd
+          --force-conflicts
           --wait --timeout 5m
 
   # --- Day 2: Ongoing Management ---
