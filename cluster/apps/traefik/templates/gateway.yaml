@@ -15,7 +15,9 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - name: wildcard-xmple-io-tls
+          - group: ""
+            kind: Secret
+            name: wildcard-xmple-io-tls
       allowedRoutes:
         namespaces:
           from: All
