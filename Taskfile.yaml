@@ -239,7 +239,12 @@ tasks:
       - helm upgrade --install longhorn cluster/apps/longhorn
           --namespace longhorn-system
           --force-conflicts
+          --set skipCRDResources=true
           --wait --timeout 10m
+      - helm upgrade --install longhorn cluster/apps/longhorn
+          --namespace longhorn-system
+          --force-conflicts
+          --wait --timeout 2m
 
   argocd:
     desc: Install or upgrade ArgoCD
