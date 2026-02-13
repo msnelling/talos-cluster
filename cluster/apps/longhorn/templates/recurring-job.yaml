@@ -1,4 +1,3 @@
-{{- if not .Values.skipCRDResources }}
 apiVersion: longhorn.io/v1beta2
 kind: RecurringJob
 metadata:
@@ -11,4 +10,3 @@ spec:
     - default
   retain: 7
   concurrency: 1
-{{- end }}

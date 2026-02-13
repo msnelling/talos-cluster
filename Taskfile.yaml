@@ -175,7 +175,7 @@ tasks:
       - task: cilium
       - task: traefik
       - task: cert-manager
-      - task: longhorn
+      - task: longhorn-secret
       - task: argocd
       - echo "Waiting for cluster to become healthy..."
       - talosctl health
@@ -222,9 +222,8 @@ tasks:
           --force-conflicts
           --wait --timeout 5m
 
-  longhorn:
-    desc: Install or upgrade Longhorn
-    deps: [_require-helm]
+  longhorn-secret:
+    desc: Create Longhorn namespace and S3 backup secret (Longhorn itself is installed by ArgoCD)
     cmds:
       - kubectl create namespace longhorn-system --dry-run=client -o yaml | kubectl apply -f -
       - |
@@ -234,17 +233,17 @@ tasks:
           --from-literal=AWS_SECRET_ACCESS_KEY={{.LONGHORN_S3_SECRET_KEY}} \
           --from-literal=AWS_ENDPOINTS={{.LONGHORN_S3_ENDPOINT}} \
           --dry-run=client -o yaml | kubectl apply -f -
+
+  longhorn:
+    desc: Install or upgrade Longhorn manually (normally managed by ArgoCD)
+    deps: [_require-helm, longhorn-secret]
+    cmds:
       - helm repo add longhorn https://charts.longhorn.io --force-update
       - helm dependency build cluster/apps/longhorn
       - helm upgrade --install longhorn cluster/apps/longhorn
           --namespace longhorn-system
           --force-conflicts
-          --set skipCRDResources=true
           --wait --timeout 10m
-      - helm upgrade --install longhorn cluster/apps/longhorn
-          --namespace longhorn-system
-          --force-conflicts
-          --wait --timeout 2m
 
   argocd:
     desc: Install or upgrade ArgoCD
