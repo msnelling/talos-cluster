@@ -1,0 +1,5 @@
+{
+  "appName": "jellyseerr",
+  "namespace": "db3000",
+  "chartPath": "cluster/db3000/jellyseerr"
+}
