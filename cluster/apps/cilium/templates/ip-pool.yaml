@@ -17,4 +17,4 @@ spec:
       stop: 10.1.1.61
   serviceSelector:
     matchLabels:
-      io.kubernetes.service.namespace: db3000
+      app.kubernetes.io/part-of: db3000
