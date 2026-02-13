@@ -1,0 +1,22 @@
+media-app:
+  image:
+    repository: ghcr.io/advplyr/audiobookshelf
+    tag: "2.32.1"
+  containerPort: 80
+  env:
+    TZ: Europe/London
+    CONFIG_PATH: /data/config
+    METADATA_PATH: /data/metadata
+    BACKUP_PATH: /data/backups
+  persistence:
+    config:
+      mountPath: /data
+    media:
+      enabled: true
+  httproute:
+    path: /audiobookshelf
+  resources:
+    requests:
+      memory: 512Mi
+    limits:
+      memory: 512Mi

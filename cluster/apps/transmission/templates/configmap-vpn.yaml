@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: transmission-vpn
+  labels:
+    app.kubernetes.io/name: transmission
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: db3000
+data:
+  TZ: Europe/London
+  DOT: "off"
+  HTTPPROXY: "on"
+  HTTPPROXY_LOG: "on"
+  HTTP_CONTROL_SERVER_LOG: "off"
+  FIREWALL_DEBUG: "on"
+  FIREWALL_INPUT_PORTS: "8000,8888,9091,51413"
+  HEALTH_TARGET_ADDRESS: "1.1.1.1:443"
+  UPDATER_PERIOD: "24h"
+  UPDATER_VPN_SERVICE_PROVIDERS: mullvad
+  WIREGUARD_MTU: "1420"

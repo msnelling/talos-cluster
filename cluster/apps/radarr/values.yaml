@@ -1,0 +1,20 @@
+media-app:
+  image:
+    repository: ghcr.io/linuxserver/radarr
+    tag: "6.0.4"
+  containerPort: 7878
+  env:
+    TZ: Europe/London
+    PUID: "568"
+    PGID: "1001"
+    UMASK: "007"
+  persistence:
+    media:
+      enabled: true
+  httproute:
+    path: /radarr
+  resources:
+    requests:
+      memory: 512Mi
+    limits:
+      memory: 512Mi

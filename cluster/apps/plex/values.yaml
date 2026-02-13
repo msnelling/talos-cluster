@@ -1,0 +1,24 @@
+media-app:
+  image:
+    repository: ghcr.io/linuxserver/plex
+    tag: "1.43.0"
+  containerPort: 32400
+  env:
+    TZ: Europe/London
+    PUID: "568"
+    PGID: "1001"
+    UMASK: "007"
+  persistence:
+    config:
+      size: 50Gi
+    media:
+      enabled: true
+  httproute:
+    hostname: plex.xmple.io
+  service:
+    port: 32400
+  resources:
+    requests:
+      memory: 2Gi
+    limits:
+      memory: 2Gi

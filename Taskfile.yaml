@@ -45,6 +45,24 @@ vars:
     sh: yq '.longhorn_s3_access_key' vars.yaml
   LONGHORN_S3_SECRET_KEY:
     sh: yq '.longhorn_s3_secret_key' vars.yaml
+  SMB_USERNAME:
+    sh: yq '.smb_username' vars.yaml
+  SMB_PASSWORD:
+    sh: yq '.smb_password' vars.yaml
+  VPN_SERVICE_PROVIDER:
+    sh: yq '.vpn_service_provider' vars.yaml
+  VPN_TYPE:
+    sh: yq '.vpn_type' vars.yaml
+  VPN_WIREGUARD_PRIVATE_KEY:
+    sh: yq '.vpn_wireguard_private_key' vars.yaml
+  VPN_WIREGUARD_ADDRESSES:
+    sh: yq '.vpn_wireguard_addresses' vars.yaml
+  VPN_SERVER_CITIES:
+    sh: yq '.vpn_server_cities' vars.yaml
+  VPN_PROXY_USER:
+    sh: yq '.vpn_proxy_user' vars.yaml
+  VPN_PROXY_PASSWORD:
+    sh: yq '.vpn_proxy_password' vars.yaml
 
 tasks:
 
@@ -93,6 +111,7 @@ tasks:
       - task: components:traefik
       - task: components:cert-manager
       - task: components:longhorn-secret
+      - task: components:db3000-secrets
       - task: components:argocd
       - echo "Waiting for cluster health..."
       - talosctl health --context {{.CLUSTER_NAME}} --wait-timeout 5m

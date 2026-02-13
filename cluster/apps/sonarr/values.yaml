@@ -1,0 +1,20 @@
+media-app:
+  image:
+    repository: ghcr.io/linuxserver/sonarr
+    tag: "4.0.16"
+  containerPort: 8989
+  env:
+    TZ: Europe/London
+    PUID: "568"
+    PGID: "1001"
+    UMASK: "007"
+  persistence:
+    media:
+      enabled: true
+  httproute:
+    path: /sonarr
+  resources:
+    requests:
+      memory: 600Mi
+    limits:
+      memory: 600Mi

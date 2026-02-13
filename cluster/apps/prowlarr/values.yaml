@@ -1,0 +1,17 @@
+media-app:
+  image:
+    repository: ghcr.io/linuxserver/prowlarr
+    tag: "2.3.0"
+  containerPort: 9696
+  env:
+    TZ: Europe/London
+    PUID: "568"
+    PGID: "1001"
+    UMASK: "007"
+  httproute:
+    path: /prowlarr
+  resources:
+    requests:
+      memory: 384Mi
+    limits:
+      memory: 384Mi

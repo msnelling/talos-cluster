@@ -22,6 +22,7 @@ task components:traefik          # Install/upgrade Traefik (traefik namespace)
 task components:cert-manager     # Install/upgrade cert-manager (cert-manager namespace)
 task components:longhorn-secret  # Create Longhorn namespace + S3 backup secret
 task components:argocd           # Install/upgrade ArgoCD (argocd namespace)
+task components:db3000-secrets  # Create db3000 namespace + media app secrets
 ```
 
 Each Helm component task runs: `helm repo add` → `helm dependency build` → `helm upgrade --install` with `--force-conflicts` (required for Helm 4 SSA compatibility with ArgoCD).
@@ -76,6 +77,10 @@ cluster/apps/<name>/
 ```
 
 **Values nesting is mandatory** — Helm scopes values to the dependency alias. A Traefik value goes under `traefik:`, Cilium under `cilium:`, ArgoCD under `argo-cd:`.
+
+### Local Library Chart (media-app)
+
+Media apps under `cluster/apps/` use a shared library chart at `cluster/lib/media-app/` as a file dependency (`repository: "file://../../lib/media-app"`). This provides reusable Deployment, Service, ConfigMap, PVC, and HTTPRoute templates. Values are nested under `media-app:`.
 
 ### ArgoCD GitOps Flow
 
@@ -153,6 +158,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **Talos enforces `baseline` PodSecurity by default on all namespaces.** Components needing privileged access (Longhorn, etc.) require a namespace template with `pod-security.kubernetes.io/enforce: privileged` label.
 
+**db3000 media apps use subpath routing** at `db3000.xmple.io/<app>`. Plex is the exception (`plex.xmple.io`) because it cannot serve from a subpath.
+
 ## Secrets (Not in Git)
 
 | Secret | Namespace | Source |
@@ -160,5 +167,9 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 | `cloudflare-api-token` | cert-manager | `task components:cert-manager` (from vars.yaml) |
 | `longhorn-s3-secret` | longhorn-system | `task components:longhorn-secret` (from vars.yaml) |
 | `argocd-repo-key` | argocd | `task components:argocd` (from local `argocd-repo-key` file) |
+| `media-smb-creds` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
+| `transmission-vpn-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
+| `transmission-proxy-credentials` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
+| `gluetun-auth-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 
 Generate the deploy key with `ssh-keygen -t ed25519 -f argocd-repo-key -N ""` and add the public key as a read-only deploy key in GitHub repo settings.

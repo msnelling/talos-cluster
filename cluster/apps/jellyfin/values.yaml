@@ -1,0 +1,26 @@
+media-app:
+  image:
+    repository: ghcr.io/jellyfin/jellyfin
+  containerPort: 8096
+  env:
+    JELLYFIN_PublishedServerUrl: https://db3000.xmple.io/jellyfin
+    JELLYFIN_hostwebclient: "true"
+  persistence:
+    config:
+      size: 50Gi
+    media:
+      enabled: true
+  extraVolumes:
+    - name: cache
+      persistentVolumeClaim:
+        claimName: jellyfin-cache
+  extraVolumeMounts:
+    - name: cache
+      mountPath: /cache
+  httproute:
+    path: /jellyfin
+  resources:
+    requests:
+      memory: 4Gi
+    limits:
+      memory: 4Gi

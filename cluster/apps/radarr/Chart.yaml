@@ -1,0 +1,7 @@
+apiVersion: v2
+name: radarr
+version: 0.1.0
+dependencies:
+  - name: media-app
+    version: "0.1.0"
+    repository: "file://../../lib/media-app"

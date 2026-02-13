@@ -1,0 +1,5 @@
+apiVersion: v2
+name: media-app
+description: Shared library chart for db3000 media applications
+version: 0.1.0
+type: application

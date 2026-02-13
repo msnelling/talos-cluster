@@ -1,0 +1,22 @@
+media-app:
+  image:
+    repository: ghcr.io/nzbgetcom/nzbget
+    tag: "v25.4"
+  containerPort: 6789
+  env:
+    TZ: Europe/London
+    PUID: "568"
+    PGID: "1001"
+    UMASK: "007"
+  persistence:
+    media:
+      enabled: true
+      mountPath: /downloads
+      subPath: Download/NZBGet
+  httproute:
+    path: /nzbget
+  resources:
+    requests:
+      memory: 300Mi
+    limits:
+      memory: 300Mi

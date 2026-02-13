@@ -1,0 +1,68 @@
+media-app:
+  image:
+    repository: ghcr.io/linuxserver/transmission
+    tag: "4.1.0"
+  containerPort: 9091
+  env:
+    TZ: Europe/London
+    PUID: "568"
+    PGID: "1001"
+    UMASK: "007"
+  persistence:
+    media:
+      enabled: true
+      mountPath: /downloads
+      subPath: Download/Transmission
+  httproute:
+    path: /transmission
+  resources:
+    requests:
+      cpu: 50m
+      memory: 1500Mi
+    limits:
+      memory: 1500Mi
+  sidecars:
+    - name: gluetun
+      image: docker.io/qmcgaw/gluetun:v3.41.1
+      ports:
+        - name: proxy
+          containerPort: 8888
+          protocol: TCP
+        - name: control
+          containerPort: 8000
+          protocol: TCP
+      envFrom:
+        - configMapRef:
+            name: transmission-vpn
+        - secretRef:
+            name: transmission-vpn-secrets
+        - secretRef:
+            name: transmission-proxy-credentials
+      volumeMounts:
+        - name: gluetun-auth
+          mountPath: /gluetun/auth/config.toml
+          subPath: config.toml
+        - name: tun
+          mountPath: /dev/net/tun
+      securityContext:
+        capabilities:
+          add:
+            - NET_ADMIN
+        readOnlyRootFilesystem: false
+      resources:
+        requests:
+          cpu: 100m
+      livenessProbe:
+        httpGet:
+          path: /v1/publicip/ip
+          port: 8000
+        initialDelaySeconds: 30
+        periodSeconds: 30
+  extraVolumes:
+    - name: gluetun-auth
+      secret:
+        secretName: gluetun-auth-secrets
+    - name: tun
+      hostPath:
+        path: /dev/net/tun
+        type: CharDevice

@@ -1,0 +1,17 @@
+media-app:
+  image:
+    repository: ghcr.io/linuxserver/tautulli
+    tag: "2.16.0"
+  containerPort: 8181
+  env:
+    TZ: Europe/London
+    PUID: "568"
+    PGID: "1001"
+    UMASK: "007"
+  httproute:
+    path: /tautulli
+  resources:
+    requests:
+      memory: 600Mi
+    limits:
+      memory: 600Mi

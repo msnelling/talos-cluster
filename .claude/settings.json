@@ -1,0 +1,53 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "Bash(wc:*)",
+      "Bash(yq:*)",
+      "Bash(git push:*)",
+      "Bash(git revert:*)",
+      "Bash(git pull:*)",
+      "Bash(git init:*)",
+      "Bash(git status:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote:*)",
+      "Bash(gh api:*)",
+      "Bash(gh repo view:*)",
+      "Bash(task:*)",
+      "Bash(helm history:*)",
+      "Bash(helm uninstall:*)",
+      "Bash(helm repo add:*)",
+      "Bash(helm upgrade:*)",
+      "Bash(helm search repo:*)",
+      "Bash(helm repo update:*)",
+      "Bash(helm show values:*)",
+      "Bash(helm list:*)",
+      "Bash(helm rollback:*)",
+      "Bash(helm dependency build:*)",
+      "Bash(helm template:*)",
+      "Bash(helm version:*)",
+      "Bash(helm status:*)",
+      "Bash(kubectl get:*)",
+      "Bash(kubectl delete:*)",
+      "Bash(kubectl apply:*)",
+      "Bash(kubectl describe:*)",
+      "Bash(kubectl logs:*)",
+      "Bash(kubectl rollout:*)",
+      "Bash(kubectl create:*)",
+      "Bash(kubectl wait:*)",
+      "Bash(kubectl annotate:*)",
+      "Bash(kubectl label:*)",
+      "Bash(kubectl patch:*)",
+      "Bash(kubectl scale:*)",
+      "Bash(python3:*)",
+      "Skill(claude-md-management:revise-claude-md)",
+      "Skill(commit-commands:commit)",
+      "WebSearch"
+    ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true
+  }
+}

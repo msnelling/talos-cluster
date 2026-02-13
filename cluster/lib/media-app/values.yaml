@@ -1,0 +1,42 @@
+image:
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+
+containerPort: 8080
+
+env: {}
+
+envFromSecret: ""
+
+persistence:
+  config:
+    enabled: true
+    size: 1Gi
+    mountPath: /config
+    storageClass: ""
+  media:
+    enabled: false
+    claimName: media-share
+    mountPath: /media
+    subPath: ""
+
+extraVolumes: []
+extraVolumeMounts: []
+
+httproute:
+  enabled: true
+  hostname: db3000.xmple.io
+  path: /
+
+service:
+  port: 80
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 256Mi
+
+sidecars: []

@@ -76,3 +76,31 @@ tasks:
           --namespace argocd
           --force-conflicts
           --wait --timeout 5m
+
+  db3000-secrets:
+    desc: Create db3000 namespace and secrets for media apps
+    cmds:
+      - kubectl create namespace db3000 --dry-run=client -o yaml | kubectl apply -f -
+      - kubectl create secret generic media-smb-creds
+          --namespace db3000
+          --from-literal=username={{.SMB_USERNAME}}
+          --from-literal=password={{.SMB_PASSWORD}}
+          --dry-run=client -o yaml | kubectl apply -f -
+      - kubectl create secret generic transmission-vpn-secrets
+          --namespace db3000
+          --from-literal=VPN_SERVICE_PROVIDER={{.VPN_SERVICE_PROVIDER}}
+          --from-literal=VPN_TYPE={{.VPN_TYPE}}
+          --from-literal=WIREGUARD_PRIVATE_KEY={{.VPN_WIREGUARD_PRIVATE_KEY}}
+          --from-literal=WIREGUARD_ADDRESSES={{.VPN_WIREGUARD_ADDRESSES}}
+          --from-literal=SERVER_CITIES={{.VPN_SERVER_CITIES}}
+          --dry-run=client -o yaml | kubectl apply -f -
+      - kubectl create secret generic transmission-proxy-credentials
+          --namespace db3000
+          --from-literal=HTTPPROXY_USER={{.VPN_PROXY_USER}}
+          --from-literal=HTTPPROXY_PASSWORD={{.VPN_PROXY_PASSWORD}}
+          --dry-run=client -o yaml | kubectl apply -f -
+      - yq -r '.vpn_auth_config' vars.yaml |
+          kubectl create secret generic gluetun-auth-secrets
+          --namespace db3000
+          --from-file=config.toml=/dev/stdin
+          --dry-run=client -o yaml | kubectl apply -f -

@@ -1,0 +1,17 @@
+media-app:
+  image:
+    repository: fallenbagel/jellyseerr
+    tag: "2.7.3"
+    pullPolicy: Always
+  containerPort: 5055
+  env:
+    TZ: Europe/London
+  persistence:
+    config:
+      size: 5Gi
+      mountPath: /app/config
+  resources:
+    requests:
+      memory: 1Gi
+    limits:
+      memory: 1Gi

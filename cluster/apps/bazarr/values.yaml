@@ -1,0 +1,20 @@
+media-app:
+  image:
+    repository: ghcr.io/linuxserver/bazarr
+    tag: "1.5.5"
+  containerPort: 6767
+  env:
+    TZ: Europe/London
+    PUID: "568"
+    PGID: "1001"
+    UMASK: "007"
+  persistence:
+    media:
+      enabled: true
+  httproute:
+    path: /bazarr
+  resources:
+    requests:
+      memory: 500Mi
+    limits:
+      memory: 500Mi
