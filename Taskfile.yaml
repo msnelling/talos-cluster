@@ -29,10 +29,6 @@ vars:
     sh: yq '.longhorn_version' vars.yaml
   LONGHORN_S3_ENDPOINT:
     sh: yq '.longhorn_s3_endpoint' vars.yaml
-  LONGHORN_S3_BUCKET:
-    sh: yq '.longhorn_s3_bucket' vars.yaml
-  LONGHORN_S3_REGION:
-    sh: yq '.longhorn_s3_region' vars.yaml
   LONGHORN_S3_ACCESS_KEY:
     sh: yq '.longhorn_s3_access_key' vars.yaml
   LONGHORN_S3_SECRET_KEY:
