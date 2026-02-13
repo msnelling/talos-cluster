@@ -8,6 +8,9 @@ media-app:
     PUID: "568"
     PGID: "1001"
     UMASK: "007"
+  persistence:
+    config:
+      existingVolume: db3000-prowlarr-config
   httproute:
     path: /prowlarr
   resources:

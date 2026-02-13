@@ -9,6 +9,8 @@ media-app:
     PGID: "1001"
     UMASK: "007"
   persistence:
+    config:
+      existingVolume: db3000-bazarr-config
     media:
       enabled: true
   httproute:

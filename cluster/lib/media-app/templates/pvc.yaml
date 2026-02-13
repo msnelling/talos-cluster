@@ -7,8 +7,11 @@ metadata:
     {{- include "media-app.labels" . | nindent 4 }}
 spec:
   accessModes:
-    - ReadWriteOnce
-  {{- if .Values.persistence.config.storageClass }}
+    - ReadWriteOncePod
+  {{- if .Values.persistence.config.existingVolume }}
+  storageClassName: longhorn
+  volumeName: {{ .Values.persistence.config.existingVolume }}
+  {{- else if .Values.persistence.config.storageClass }}
   storageClassName: {{ .Values.persistence.config.storageClass }}
   {{- end }}
   resources:

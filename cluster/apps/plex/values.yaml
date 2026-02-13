@@ -11,6 +11,7 @@ media-app:
   persistence:
     config:
       size: 50Gi
+      existingVolume: db3000-plex-config
     media:
       enabled: true
   httproute:

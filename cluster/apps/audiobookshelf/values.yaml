@@ -10,6 +10,8 @@ media-app:
     BACKUP_PATH: /data/backups
   persistence:
     config:
+      size: 5Gi
+      existingVolume: db3000-audiobookshelf-config
       mountPath: /data
     media:
       enabled: true

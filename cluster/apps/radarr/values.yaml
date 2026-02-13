@@ -9,6 +9,9 @@ media-app:
     PGID: "1001"
     UMASK: "007"
   persistence:
+    config:
+      size: 2Gi
+      existingVolume: db3000-radarr-config
     media:
       enabled: true
   httproute:

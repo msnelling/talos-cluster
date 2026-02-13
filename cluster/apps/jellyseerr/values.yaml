@@ -8,7 +8,8 @@ media-app:
     TZ: Europe/London
   persistence:
     config:
-      size: 5Gi
+      size: 1Gi
+      existingVolume: db3000-jellyseerr-config
       mountPath: /app/config
   resources:
     requests:

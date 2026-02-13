@@ -7,7 +7,8 @@ media-app:
     JELLYFIN_hostwebclient: "true"
   persistence:
     config:
-      size: 50Gi
+      size: 10Gi
+      existingVolume: db3000-jellyfin-config
     media:
       enabled: true
   extraVolumes:
