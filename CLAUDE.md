@@ -37,6 +37,10 @@ task dashboard       # Interactive Talos dashboard
 
 After ArgoCD is running, component upgrades go through git: bump the version in `Chart.yaml`, push to `main`, ArgoCD auto-syncs.
 
+### Bootstrap vs ArgoCD-Managed Components
+
+Only components that must exist before ArgoCD belong in the Taskfile bootstrap chain (Cilium, Traefik, cert-manager). Other components (e.g., Longhorn) should have their namespace and secrets created during bootstrap, but the actual Helm install is left to ArgoCD. ArgoCD handles CRD-before-CR ordering natively, which avoids Helm's inability to install custom resources alongside the CRDs that define them.
+
 ## Architecture
 
 ### Wrapper Helm Chart Pattern
@@ -123,12 +127,18 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **After reinstalling Longhorn**, existing PVCs may need manual reattachment if the volume data still exists on disk.
 
+**Longhorn v1.11.0 chart moved backup settings** from `defaultSettings.backupTarget` to `defaultBackupStore.backupTarget`. Always run `helm show values` to verify value paths when adding or upgrading charts.
+
+**Longhorn on ArgoCD requires `preUpgradeChecker.jobEnabled: false`** — the pre-upgrade job uses Helm hooks which ArgoCD skips, causing sync failures.
+
+**Talos enforces `baseline` PodSecurity by default on all namespaces.** Components needing privileged access (Longhorn, etc.) require a namespace template with `pod-security.kubernetes.io/enforce: privileged` label.
+
 ## Secrets (Not in Git)
 
 | Secret | Namespace | Source |
 |---|---|---|
 | `cloudflare-api-token` | cert-manager | `task cert-manager` (from vars.yaml) |
-| `longhorn-s3-secret` | longhorn-system | `task longhorn` (from vars.yaml) |
+| `longhorn-s3-secret` | longhorn-system | `task longhorn-secret` (from vars.yaml) |
 | `argocd-repo-key` | argocd | `task argocd` (from local `argocd-repo-key` file) |
 
 Generate the deploy key with `ssh-keygen -t ed25519 -f argocd-repo-key -N ""` and add the public key as a read-only deploy key in GitHub repo settings.
