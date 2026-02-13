@@ -111,7 +111,6 @@ tasks:
       - task: components:traefik
       - task: components:cert-manager
       - task: components:longhorn-secret
-      - task: components:db3000-secrets
       - task: components:argocd
       - echo "Waiting for cluster health..."
       - talosctl health --context {{.CLUSTER_NAME}} --wait-timeout 5m

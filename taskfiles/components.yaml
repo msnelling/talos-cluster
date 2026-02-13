@@ -78,9 +78,8 @@ tasks:
           --wait --timeout 5m
 
   db3000-secrets:
-    desc: Create db3000 namespace and secrets for media apps
+    desc: Create secrets for db3000 media apps (namespace must exist first)
     cmds:
-      - kubectl create namespace db3000 --dry-run=client -o yaml | kubectl apply -f -
       - kubectl create secret generic media-smb-creds
           --namespace db3000
           --from-literal=username={{.SMB_USERNAME}}
