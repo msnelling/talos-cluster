@@ -1,3 +1,14 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json"
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "packageRules": [
+    {
+      "description": "Exclude date-based tags (2021.x.x etc) for LinuxServer images that use application semver",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "ghcr.io/linuxserver/tautulli",
+        "ghcr.io/linuxserver/transmission"
+      ],
+      "allowedVersions": "!/^20\\d{2}\\./"
+    }
+  ]
 }
