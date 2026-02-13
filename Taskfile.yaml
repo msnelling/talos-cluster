@@ -117,6 +117,7 @@ tasks:
       - talosctl machineconfig patch generated/controlplane.yaml
           --patch @patches/controlplane.yaml
           --patch @patches/cni.yaml
+          --patch @patches/longhorn.yaml
           --patch @generated/common-patch.yaml
           --patch @generated/install-image-patch.yaml
           --patch @generated/tailscale-patch.yaml
