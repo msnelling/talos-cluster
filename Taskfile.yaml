@@ -25,6 +25,18 @@ vars:
     sh: yq '.cloudflare_api_token' vars.yaml
   ARGOCD_VERSION:
     sh: yq '.argocd_version' vars.yaml
+  LONGHORN_VERSION:
+    sh: yq '.longhorn_version' vars.yaml
+  LONGHORN_S3_ENDPOINT:
+    sh: yq '.longhorn_s3_endpoint' vars.yaml
+  LONGHORN_S3_BUCKET:
+    sh: yq '.longhorn_s3_bucket' vars.yaml
+  LONGHORN_S3_REGION:
+    sh: yq '.longhorn_s3_region' vars.yaml
+  LONGHORN_S3_ACCESS_KEY:
+    sh: yq '.longhorn_s3_access_key' vars.yaml
+  LONGHORN_S3_SECRET_KEY:
+    sh: yq '.longhorn_s3_secret_key' vars.yaml
 
 tasks:
 
@@ -167,6 +179,7 @@ tasks:
       - task: cilium
       - task: traefik
       - task: cert-manager
+      - task: longhorn
       - task: argocd
       - echo "Waiting for cluster to become healthy..."
       - talosctl health
@@ -212,6 +225,25 @@ tasks:
           --namespace cert-manager
           --force-conflicts
           --wait --timeout 5m
+
+  longhorn:
+    desc: Install or upgrade Longhorn
+    deps: [_require-helm]
+    cmds:
+      - kubectl create namespace longhorn-system --dry-run=client -o yaml | kubectl apply -f -
+      - |
+        kubectl create secret generic longhorn-s3-secret \
+          --namespace longhorn-system \
+          --from-literal=AWS_ACCESS_KEY_ID={{.LONGHORN_S3_ACCESS_KEY}} \
+          --from-literal=AWS_SECRET_ACCESS_KEY={{.LONGHORN_S3_SECRET_KEY}} \
+          --from-literal=AWS_ENDPOINTS={{.LONGHORN_S3_ENDPOINT}} \
+          --dry-run=client -o yaml | kubectl apply -f -
+      - helm repo add longhorn https://charts.longhorn.io --force-update
+      - helm dependency build cluster/apps/longhorn
+      - helm upgrade --install longhorn cluster/apps/longhorn
+          --namespace longhorn-system
+          --force-conflicts
+          --wait --timeout 10m
 
   argocd:
     desc: Install or upgrade ArgoCD
