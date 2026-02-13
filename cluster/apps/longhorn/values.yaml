@@ -3,6 +3,11 @@ longhorn:
     replicas: 1
   preUpgradeChecker:
     jobEnabled: false
+  csi:
+    attacherReplicaCount: 1
+    provisionerReplicaCount: 1
+    resizerReplicaCount: 1
+    snapshotterReplicaCount: 1
   defaultSettings:
     defaultReplicaCount: 1
     defaultDataPath: /var/lib/longhorn
