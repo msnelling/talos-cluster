@@ -22,6 +22,7 @@ persistence:
     mountPath: /media
     subPath: ""
 
+extraPorts: []
 extraVolumes: []
 extraVolumeMounts: []
 

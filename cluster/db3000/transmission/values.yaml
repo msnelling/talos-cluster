@@ -3,6 +3,13 @@ media-app:
     repository: ghcr.io/linuxserver/transmission
     tag: "4.1.0"
   containerPort: 9091
+  extraPorts:
+    - name: bt-tcp
+      containerPort: 51413
+      protocol: TCP
+    - name: bt-udp
+      containerPort: 51413
+      protocol: UDP
   env:
     TZ: Europe/London
     PUID: "568"
@@ -54,12 +61,20 @@ media-app:
       resources:
         requests:
           cpu: 100m
+      readinessProbe:
+        httpGet:
+          path: /v1/publicip/ip
+          port: 8000
+        initialDelaySeconds: 10
+        periodSeconds: 20
+        failureThreshold: 5
       livenessProbe:
         httpGet:
           path: /v1/publicip/ip
           port: 8000
         initialDelaySeconds: 30
-        periodSeconds: 30
+        periodSeconds: 60
+        failureThreshold: 5
   extraVolumes:
     - name: gluetun-auth
       secret:
