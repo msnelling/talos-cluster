@@ -1,4 +1,6 @@
 longhorn:
+  longhornUI:
+    replicas: 1
   preUpgradeChecker:
     jobEnabled: false
   defaultSettings:
