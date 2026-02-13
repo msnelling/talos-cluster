@@ -1,7 +1,10 @@
 longhorn:
+  preUpgradeChecker:
+    jobEnabled: false
   defaultSettings:
     defaultReplicaCount: 1
     defaultDataPath: /var/lib/longhorn
+  defaultBackupStore:
     backupTarget: "s3://longhorn-backup@us-east-1/"
     backupTargetCredentialSecret: longhorn-s3-secret
   persistence:
