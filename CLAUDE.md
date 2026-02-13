@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Single-node Talos Linux Kubernetes cluster with full GitOps management via ArgoCD. All cluster components are deployed as **wrapper Helm charts** and managed declaratively through git.
 
-**Stack:** Talos v1.12.3, Kubernetes v1.35.0, Cilium CNI, Traefik (Gateway API), cert-manager, ArgoCD
+**Stack:** Talos v1.12.3, Kubernetes v1.35.0, Cilium CNI, Traefik (Gateway API), cert-manager, Longhorn, ArgoCD
 
 ## Commands
 
@@ -20,6 +20,7 @@ task setup NODE_IP=x.x.x.x    # Full cluster bootstrap (generate → patch → a
 task cilium          # Install/upgrade Cilium CNI (kube-system)
 task traefik         # Install/upgrade Traefik (traefik namespace)
 task cert-manager    # Install/upgrade cert-manager (cert-manager namespace)
+task longhorn         # Install/upgrade Longhorn (longhorn-system namespace)
 task argocd          # Install/upgrade ArgoCD (argocd namespace)
 ```
 
@@ -118,11 +119,16 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **API server defaults on Gateway API resources** (group, kind, weight, path match) must be explicitly specified in templates, otherwise ArgoCD sees permanent drift.
 
+**Longhorn on Talos requires kubelet extra mount** for `/var/lib/longhorn` — the patch in `patches/longhorn.yaml` must be applied and the node rebooted before Longhorn install.
+
+**After reinstalling Longhorn**, existing PVCs may need manual reattachment if the volume data still exists on disk.
+
 ## Secrets (Not in Git)
 
 | Secret | Namespace | Source |
 |---|---|---|
 | `cloudflare-api-token` | cert-manager | `task cert-manager` (from vars.yaml) |
+| `longhorn-s3-secret` | longhorn-system | `task longhorn` (from vars.yaml) |
 | `argocd-repo-key` | argocd | `task argocd` (from local `argocd-repo-key` file) |
 
 Generate the deploy key with `ssh-keygen -t ed25519 -f argocd-repo-key -N ""` and add the public key as a read-only deploy key in GitHub repo settings.
