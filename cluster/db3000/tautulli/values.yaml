@@ -1,7 +1,7 @@
 media-app:
   image:
     repository: ghcr.io/linuxserver/tautulli
-    tag: "2.16.0"
+    tag: "2021.12.16"
   containerPort: 8181
   env:
     TZ: Europe/London
