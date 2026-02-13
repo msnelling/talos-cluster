@@ -17,25 +17,45 @@ task setup NODE_IP=x.x.x.x    # Full cluster bootstrap (generate → patch → a
 
 ### Individual Component Install/Upgrade
 ```bash
-task cilium          # Install/upgrade Cilium CNI (kube-system)
-task traefik         # Install/upgrade Traefik (traefik namespace)
-task cert-manager    # Install/upgrade cert-manager (cert-manager namespace)
-task longhorn         # Install/upgrade Longhorn (longhorn-system namespace)
-task argocd          # Install/upgrade ArgoCD (argocd namespace)
+task components:cilium           # Install/upgrade Cilium CNI (kube-system)
+task components:traefik          # Install/upgrade Traefik (traefik namespace)
+task components:cert-manager     # Install/upgrade cert-manager (cert-manager namespace)
+task components:longhorn-secret  # Create Longhorn namespace + S3 backup secret
+task components:argocd           # Install/upgrade ArgoCD (argocd namespace)
 ```
 
-Each task runs: `helm repo add` → `helm dependency build` → `helm upgrade --install` with `--force-conflicts` (required for Helm 4 SSA compatibility with ArgoCD).
+Each Helm component task runs: `helm repo add` → `helm dependency build` → `helm upgrade --install` with `--force-conflicts` (required for Helm 4 SSA compatibility with ArgoCD).
 
 ### Day-2 Operations
 ```bash
-task upgrade-talos   # Upgrade Talos OS
-task upgrade-k8s     # Upgrade Kubernetes
-task reconfigure     # Re-apply Talos config patches
-task status          # Cluster health check
-task dashboard       # Interactive Talos dashboard
+task day2:upgrade-talos   # Upgrade Talos OS
+task day2:upgrade-k8s     # Upgrade Kubernetes
+task day2:reboot          # Reboot the node
+task day2:reset           # Wipe the node (DESTRUCTIVE, prompts for confirmation)
+task reconfigure          # Re-patch and apply Talos config changes (top-level wrapper)
 ```
 
 After ArgoCD is running, component upgrades go through git: bump the version in `Chart.yaml`, push to `main`, ArgoCD auto-syncs.
+
+### Utilities
+```bash
+task utility:status       # Cluster health check (Talos + kubectl + Cilium)
+task utility:dashboard    # Interactive Talos dashboard
+task utility:disks        # List disks on node (useful before first install)
+task utility:links        # List network interfaces on node
+task setup:download       # Download Talos secure-boot ISO from Image Factory
+task setup:kubeconfig     # Retrieve and merge kubeconfig
+```
+
+### Taskfile Structure
+
+Tasks are split into domain-grouped files under `taskfiles/` with namespaced includes:
+- `taskfiles/setup.yaml` -- cluster provisioning (download, generate, patch, apply, bootstrap, kubeconfig)
+- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, argocd)
+- `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, reboot, reset)
+- `taskfiles/utility.yaml` -- diagnostics (status, dashboard, disks, links)
+
+Root `Taskfile.yaml` holds global vars, shared precondition helpers (`_require-node-ip`, `_require-helm`), and top-level orchestration tasks (`setup`, `reconfigure`).
 
 ### Bootstrap vs ArgoCD-Managed Components
 
@@ -137,8 +157,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 | Secret | Namespace | Source |
 |---|---|---|
-| `cloudflare-api-token` | cert-manager | `task cert-manager` (from vars.yaml) |
-| `longhorn-s3-secret` | longhorn-system | `task longhorn-secret` (from vars.yaml) |
-| `argocd-repo-key` | argocd | `task argocd` (from local `argocd-repo-key` file) |
+| `cloudflare-api-token` | cert-manager | `task components:cert-manager` (from vars.yaml) |
+| `longhorn-s3-secret` | longhorn-system | `task components:longhorn-secret` (from vars.yaml) |
+| `argocd-repo-key` | argocd | `task components:argocd` (from local `argocd-repo-key` file) |
 
 Generate the deploy key with `ssh-keygen -t ed25519 -f argocd-repo-key -N ""` and add the public key as a read-only deploy key in GitHub repo settings.

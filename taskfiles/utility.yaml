@@ -1,0 +1,33 @@
+version: "3"
+
+tasks:
+
+  status:
+    desc: Show node health and cluster status
+    deps: [":_require-node-ip"]
+    preconditions:
+      - sh: command -v cilium
+        msg: "cilium CLI is required. Install with: brew install cilium-cli"
+    cmds:
+      - talosctl health --context {{.CLUSTER_NAME}}
+      - kubectl --context admin@{{.CLUSTER_NAME}} get nodes -o wide
+      - cilium status --context admin@{{.CLUSTER_NAME}}
+
+  dashboard:
+    desc: Open Talos dashboard
+    deps: [":_require-node-ip"]
+    interactive: true
+    cmds:
+      - talosctl dashboard --context {{.CLUSTER_NAME}}
+
+  disks:
+    desc: List disks on the node (useful before first install)
+    deps: [":_require-node-ip"]
+    cmds:
+      - talosctl get disks --insecure --nodes {{.NODE_IP}}
+
+  links:
+    desc: List network interfaces on the node
+    deps: [":_require-node-ip"]
+    cmds:
+      - talosctl get links --insecure --nodes {{.NODE_IP}}

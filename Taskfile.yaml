@@ -1,5 +1,17 @@
 version: "3"
 
+silent: true
+
+includes:
+  setup:
+    taskfile: ./taskfiles/setup.yaml
+  components:
+    taskfile: ./taskfiles/components.yaml
+  day2:
+    taskfile: ./taskfiles/day2.yaml
+  utility:
+    taskfile: ./taskfiles/utility.yaml
+
 vars:
   CLUSTER_NAME:
     sh: yq '.cluster_name' vars.yaml
@@ -36,16 +48,18 @@ vars:
 
 tasks:
 
+  default:
+    cmds:
+      - task --list
+
   _require-node-ip:
     internal: true
-    silent: true
     preconditions:
       - sh: '[ -n "{{.NODE_IP}}" ]'
         msg: "NODE_IP is required. Set it in vars.yaml or run: task set-node NODE_IP=x.x.x.x"
 
   _require-helm:
     internal: true
-    silent: true
     preconditions:
       - sh: command -v helm
         msg: "helm is required. Install with: brew install helm"
@@ -59,299 +73,34 @@ tasks:
       - sh: '[ -n "{{.NODE_IP}}" ]'
         msg: "Usage: task set-node NODE_IP=x.x.x.x"
 
-  # --- Initial Setup ---
-
-  download:
-    desc: Download Talos secure-boot ISO from Image Factory
-    vars:
-      SCHEMATIC_ID:
-        sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
-    cmds:
-      - mkdir -p downloads
-      - 'echo "Schematic ID: {{.SCHEMATIC_ID}}"'
-      - curl -Lo downloads/metal-amd64-secureboot.iso
-          "https://factory.talos.dev/image/{{.SCHEMATIC_ID}}/{{.TALOS_VERSION}}/metal-amd64-secureboot.iso"
-      - echo "Downloaded downloads/metal-amd64-secureboot.iso"
-
-  generate:
-    internal: true
-    deps: [_require-node-ip]
-    cmds:
-      - mkdir -p generated
-      - talosctl gen secrets -o generated/secrets.yaml --force
-      - talosctl gen config
-          --with-secrets generated/secrets.yaml
-          --output generated/
-          --force
-          {{.CLUSTER_NAME}}
-          https://{{.NODE_IP}}:{{.CONTROL_PLANE_PORT}}
-      - talosctl --talosconfig generated/talosconfig
-          config endpoint {{.NODE_IP}}
-      - talosctl --talosconfig generated/talosconfig
-          config node {{.NODE_IP}}
-      - |
-        if [ -f ~/.talos/config ]; then
-          yq -i 'del(.contexts.{{.CLUSTER_NAME}})' ~/.talos/config
-        fi
-      - talosctl config merge generated/talosconfig
-
-  patch:
-    internal: true
-    vars:
-      SCHEMATIC_ID:
-        sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
-      DISK:
-        sh: yq '.disk' vars.yaml
-      INTERFACE:
-        sh: yq '.interface' vars.yaml
-    cmds:
-      - yq -n '.machine.install.image = "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"'
-          > generated/install-image-patch.yaml
-      - yq -n '
-          .machine.install.disk = "{{.DISK}}" |
-          .machine.network.interfaces[0].interface = "{{.INTERFACE}}" |
-          .machine.network.interfaces[0].dhcp = true
-        ' > generated/common-patch.yaml
-      - |
-        yq -n '
-          .apiVersion = "v1alpha1" |
-          .kind = "ExtensionServiceConfig" |
-          .name = "tailscale" |
-          .environment = ["TS_AUTHKEY={{.TAILSCALE_AUTH_KEY}}"]
-        ' > generated/tailscale-patch.yaml
-        if [ -n "{{.TAILSCALE_ROUTES}}" ]; then
-          yq -i '.environment += ["TS_ROUTES={{.TAILSCALE_ROUTES}}"]' generated/tailscale-patch.yaml
-        fi
-      - talosctl machineconfig patch generated/controlplane.yaml
-          --patch @patches/controlplane.yaml
-          --patch @patches/cni.yaml
-          --patch @patches/longhorn.yaml
-          --patch @generated/common-patch.yaml
-          --patch @generated/install-image-patch.yaml
-          --patch @generated/tailscale-patch.yaml
-          --output generated/controlplane.yaml
-
-  apply:
-    desc: Apply config to the node (insecure, for first install)
-    deps: [_require-node-ip]
-    cmds:
-      - talosctl apply-config --insecure
-          --nodes {{.NODE_IP}}
-          --file generated/controlplane.yaml
-
-  bootstrap:
-    internal: true
-    deps: [_require-node-ip]
-    cmds:
-      - talosctl bootstrap
-          --context {{.CLUSTER_NAME}}
-
-  kubeconfig:
-    desc: Retrieve kubeconfig and merge into ~/.kube/config
-    deps: [_require-node-ip]
-    cmds:
-      - talosctl kubeconfig
-          --context {{.CLUSTER_NAME}}
-
   setup:
     desc: "Full initial setup: generate, patch, apply, bootstrap, kubeconfig"
     interactive: true
     cmds:
       - task: set-node
         vars: { NODE_IP: "{{.NODE_IP}}" }
-      - task: generate
-      - task: patch
-      - task: apply
-      - echo "Remove the bootable ISO/USB and press Enter to continue..."
-      - read -r
+      - task: setup:generate
+      - task: setup:patch
+      - task: setup:apply
+      - read -rp "Remove the bootable ISO/USB and press Enter to continue..."
       - |
-        echo "Waiting for Talos API to become reachable..."
-        until talosctl --context {{.CLUSTER_NAME}} version >/dev/null 2>&1; do
-          sleep 5
-        done
+        echo "Waiting for Talos API..."
+        until talosctl --context {{.CLUSTER_NAME}} version >/dev/null 2>&1; do sleep 5; done
         echo "Talos API is up."
-      - task: bootstrap
-      - task: kubeconfig
-      - task: cilium
-      - task: traefik
-      - task: cert-manager
-      - task: longhorn-secret
-      - task: argocd
-      - echo "Waiting for cluster to become healthy..."
-      - talosctl health
-          --context {{.CLUSTER_NAME}}
-          --wait-timeout 5m
-      - echo "Cluster is ready! Use 'kubectl --context admin@{{.CLUSTER_NAME}} get nodes' to verify."
-
-  cilium:
-    desc: Install or upgrade Cilium CNI
-    deps: [_require-helm]
-    cmds:
-      - helm repo add cilium https://helm.cilium.io/ --force-update
-      - helm dependency build cluster/apps/cilium
-      - helm upgrade --install cilium cluster/apps/cilium
-          --namespace kube-system
-          --force-conflicts
-          --wait --timeout 5m
-
-  traefik:
-    desc: Install or upgrade Traefik
-    deps: [_require-helm]
-    cmds:
-      - helm repo add traefik https://traefik.github.io/charts --force-update
-      - helm dependency build cluster/apps/traefik
-      - helm upgrade --install traefik cluster/apps/traefik
-          --namespace traefik
-          --create-namespace
-          --force-conflicts
-          --wait --timeout 5m
-
-  cert-manager:
-    desc: Install or upgrade cert-manager
-    deps: [_require-helm]
-    cmds:
-      - kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
-      - kubectl create secret generic cloudflare-api-token
-          --namespace cert-manager
-          --from-literal=api-token={{.CLOUDFLARE_API_TOKEN}}
-          --dry-run=client -o yaml | kubectl apply -f -
-      - helm repo add jetstack https://charts.jetstack.io --force-update
-      - helm dependency build cluster/apps/cert-manager
-      - helm upgrade --install cert-manager cluster/apps/cert-manager
-          --namespace cert-manager
-          --force-conflicts
-          --wait --timeout 5m
-
-  longhorn-secret:
-    desc: Create Longhorn namespace and S3 backup secret (Longhorn itself is installed by ArgoCD)
-    cmds:
-      - kubectl create namespace longhorn-system --dry-run=client -o yaml | kubectl apply -f -
-      - |
-        kubectl create secret generic longhorn-s3-secret \
-          --namespace longhorn-system \
-          --from-literal=AWS_ACCESS_KEY_ID={{.LONGHORN_S3_ACCESS_KEY}} \
-          --from-literal=AWS_SECRET_ACCESS_KEY={{.LONGHORN_S3_SECRET_KEY}} \
-          --from-literal=AWS_ENDPOINTS={{.LONGHORN_S3_ENDPOINT}} \
-          --dry-run=client -o yaml | kubectl apply -f -
-
-  longhorn:
-    desc: Install or upgrade Longhorn manually (normally managed by ArgoCD)
-    deps: [_require-helm, longhorn-secret]
-    cmds:
-      - helm repo add longhorn https://charts.longhorn.io --force-update
-      - helm dependency build cluster/apps/longhorn
-      - helm upgrade --install longhorn cluster/apps/longhorn
-          --namespace longhorn-system
-          --force-conflicts
-          --wait --timeout 10m
-
-  argocd:
-    desc: Install or upgrade ArgoCD
-    deps: [_require-helm]
-    cmds:
-      - kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-      - |
-        if [ ! -f argocd-repo-key ]; then
-          echo "ERROR: argocd-repo-key file not found."
-          echo "Generate it with:"
-          echo "  ssh-keygen -t ed25519 -f argocd-repo-key -N \"\""
-          echo "Then add argocd-repo-key.pub as a deploy key in the GitHub repo settings."
-          exit 1
-        fi
-      - |
-        kubectl create secret generic argocd-repo-key \
-          --namespace argocd \
-          --from-literal=type=git \
-          --from-literal=url=git@github.com:xmple/talos-cluster.git \
-          --from-file=sshPrivateKey=argocd-repo-key \
-          --dry-run=client -o yaml | kubectl apply -f -
-      - kubectl label secret argocd-repo-key -n argocd argocd.argoproj.io/secret-type=repository --overwrite
-      - helm repo add argo https://argoproj.github.io/argo-helm --force-update
-      - helm dependency build cluster/apps/argocd
-      - helm upgrade --install argocd cluster/apps/argocd
-          --namespace argocd
-          --force-conflicts
-          --wait --timeout 5m
-
-  # --- Day 2: Ongoing Management ---
-
-  upgrade-talos:
-    desc: Upgrade Talos OS on the node
-    deps: [_require-node-ip]
-    vars:
-      SCHEMATIC_ID:
-        sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
-    cmds:
-      - talosctl upgrade
-          --context {{.CLUSTER_NAME}}
-          --image "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"
-
-  upgrade-k8s:
-    desc: Upgrade Kubernetes version
-    deps: [_require-node-ip]
-    cmds:
-      - talosctl upgrade-k8s
-          --context {{.CLUSTER_NAME}}
-          --to {{.KUBERNETES_VERSION}}
+      - task: setup:bootstrap
+      - task: setup:kubeconfig
+      - task: components:cilium
+      - task: components:traefik
+      - task: components:cert-manager
+      - task: components:longhorn-secret
+      - task: components:argocd
+      - echo "Waiting for cluster health..."
+      - talosctl health --context {{.CLUSTER_NAME}} --wait-timeout 5m
+      - 'echo "Cluster is ready. Verify with: kubectl --context admin@{{.CLUSTER_NAME}} get nodes"'
 
   reconfigure:
     desc: Re-patch and apply config changes (edit patches first, then run this)
     deps: [_require-node-ip]
     cmds:
-      - task: patch
-      - talosctl apply-config
-          --context {{.CLUSTER_NAME}}
-          --file generated/controlplane.yaml
-
-  reboot:
-    desc: Reboot the node
-    deps: [_require-node-ip]
-    cmds:
-      - talosctl reboot
-          --context {{.CLUSTER_NAME}}
-
-  reset:
-    desc: Wipe the node and start over (DESTRUCTIVE)
-    prompt: This will WIPE the node and destroy all data. Are you sure?
-    deps: [_require-node-ip]
-    cmds:
-      - talosctl reset
-          --context {{.CLUSTER_NAME}}
-          --graceful=false
-          --reboot
-
-  # --- Utility ---
-
-  status:
-    desc: Show node health and cluster status
-    deps: [_require-node-ip]
-    preconditions:
-      - sh: command -v cilium
-        msg: "cilium CLI is required. Install with: brew install cilium-cli"
-    cmds:
-      - talosctl health
-          --context {{.CLUSTER_NAME}}
-      - kubectl --context admin@{{.CLUSTER_NAME}} get nodes -o wide
-      - cilium status --context admin@{{.CLUSTER_NAME}}
-
-  dashboard:
-    desc: Open Talos dashboard
-    deps: [_require-node-ip]
-    interactive: true
-    cmds:
-      - talosctl dashboard
-          --context {{.CLUSTER_NAME}}
-
-  disks:
-    desc: List disks on the node (useful before first install)
-    deps: [_require-node-ip]
-    cmds:
-      - talosctl get disks
-          --insecure --nodes {{.NODE_IP}}
-
-  links:
-    desc: List network interfaces on the node
-    deps: [_require-node-ip]
-    cmds:
-      - talosctl get links
-          --insecure --nodes {{.NODE_IP}}
+      - task: setup:patch
+      - talosctl apply-config --context {{.CLUSTER_NAME}} --file generated/controlplane.yaml

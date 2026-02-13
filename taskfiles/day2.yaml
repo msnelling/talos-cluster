@@ -1,0 +1,38 @@
+version: "3"
+
+tasks:
+
+  upgrade-talos:
+    desc: Upgrade Talos OS on the node
+    deps: [":_require-node-ip"]
+    vars:
+      SCHEMATIC_ID:
+        sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
+    cmds:
+      - talosctl upgrade
+          --context {{.CLUSTER_NAME}}
+          --image "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"
+
+  upgrade-k8s:
+    desc: Upgrade Kubernetes version
+    deps: [":_require-node-ip"]
+    cmds:
+      - talosctl upgrade-k8s
+          --context {{.CLUSTER_NAME}}
+          --to {{.KUBERNETES_VERSION}}
+
+  reboot:
+    desc: Reboot the node
+    deps: [":_require-node-ip"]
+    cmds:
+      - talosctl reboot --context {{.CLUSTER_NAME}}
+
+  reset:
+    desc: Wipe the node and start over (DESTRUCTIVE)
+    prompt: This will WIPE the node and destroy all data. Are you sure?
+    deps: [":_require-node-ip"]
+    cmds:
+      - talosctl reset
+          --context {{.CLUSTER_NAME}}
+          --graceful=false
+          --reboot

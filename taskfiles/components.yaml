@@ -1,0 +1,78 @@
+version: "3"
+
+tasks:
+
+  cilium:
+    desc: Install or upgrade Cilium CNI
+    deps: [":_require-helm"]
+    cmds:
+      - helm repo add cilium https://helm.cilium.io/ --force-update
+      - helm dependency build cluster/apps/cilium
+      - helm upgrade --install cilium cluster/apps/cilium
+          --namespace kube-system
+          --force-conflicts
+          --wait --timeout 5m
+
+  traefik:
+    desc: Install or upgrade Traefik
+    deps: [":_require-helm"]
+    cmds:
+      - helm repo add traefik https://traefik.github.io/charts --force-update
+      - helm dependency build cluster/apps/traefik
+      - helm upgrade --install traefik cluster/apps/traefik
+          --namespace traefik
+          --create-namespace
+          --force-conflicts
+          --wait --timeout 5m
+
+  cert-manager:
+    desc: Install or upgrade cert-manager
+    deps: [":_require-helm"]
+    cmds:
+      - kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
+      - kubectl create secret generic cloudflare-api-token
+          --namespace cert-manager
+          --from-literal=api-token={{.CLOUDFLARE_API_TOKEN}}
+          --dry-run=client -o yaml | kubectl apply -f -
+      - helm repo add jetstack https://charts.jetstack.io --force-update
+      - helm dependency build cluster/apps/cert-manager
+      - helm upgrade --install cert-manager cluster/apps/cert-manager
+          --namespace cert-manager
+          --force-conflicts
+          --wait --timeout 5m
+
+  longhorn-secret:
+    desc: Create Longhorn namespace and S3 backup secret (Longhorn itself is installed by ArgoCD)
+    cmds:
+      - kubectl create namespace longhorn-system --dry-run=client -o yaml | kubectl apply -f -
+      - kubectl create secret generic longhorn-s3-secret
+          --namespace longhorn-system
+          --from-literal=AWS_ACCESS_KEY_ID={{.LONGHORN_S3_ACCESS_KEY}}
+          --from-literal=AWS_SECRET_ACCESS_KEY={{.LONGHORN_S3_SECRET_KEY}}
+          --from-literal=AWS_ENDPOINTS={{.LONGHORN_S3_ENDPOINT}}
+          --dry-run=client -o yaml | kubectl apply -f -
+
+  argocd:
+    desc: Install or upgrade ArgoCD
+    deps: [":_require-helm"]
+    preconditions:
+      - sh: test -f argocd-repo-key
+        msg: |
+          argocd-repo-key file not found. Generate it with:
+            ssh-keygen -t ed25519 -f argocd-repo-key -N ""
+          Then add argocd-repo-key.pub as a deploy key in the GitHub repo settings.
+    cmds:
+      - kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+      - kubectl create secret generic argocd-repo-key
+          --namespace argocd
+          --from-literal=type=git
+          --from-literal=url=git@github.com:xmple/talos-cluster.git
+          --from-file=sshPrivateKey=argocd-repo-key
+          --dry-run=client -o yaml | kubectl apply -f -
+      - kubectl label secret argocd-repo-key -n argocd argocd.argoproj.io/secret-type=repository --overwrite
+      - helm repo add argo https://argoproj.github.io/argo-helm --force-update
+      - helm dependency build cluster/apps/argocd
+      - helm upgrade --install argocd cluster/apps/argocd
+          --namespace argocd
+          --force-conflicts
+          --wait --timeout 5m
