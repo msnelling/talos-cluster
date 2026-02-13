@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/part-of: db3000
   annotations:
-    lbipam.cilium.io/ips: "10.1.1.53"
+    lbipam.cilium.io/ips: "10.1.1.61"
     lbipam.cilium.io/sharing-key: db3000
 spec:
   type: LoadBalancer

@@ -4,7 +4,17 @@ metadata:
   name: default-pool
 spec:
   blocks:
-    - start: 10.1.1.53
-      stop: 10.1.1.53
     - start: 10.1.1.60
       stop: 10.1.1.60
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: db3000-pool
+spec:
+  blocks:
+    - start: 10.1.1.61
+      stop: 10.1.1.61
+  serviceSelector:
+    matchLabels:
+      io.kubernetes.service.namespace: db3000
