@@ -27,18 +27,8 @@ vars:
     sh: yq '.tailscale_auth_key' vars.yaml
   TAILSCALE_ROUTES:
     sh: yq '.tailscale_routes // ""' vars.yaml
-  CILIUM_VERSION:
-    sh: yq '.cilium_version' vars.yaml
-  TRAEFIK_VERSION:
-    sh: yq '.traefik_version' vars.yaml
-  CERT_MANAGER_VERSION:
-    sh: yq '.cert_manager_version' vars.yaml
   CLOUDFLARE_API_TOKEN:
     sh: yq '.cloudflare_api_token' vars.yaml
-  ARGOCD_VERSION:
-    sh: yq '.argocd_version' vars.yaml
-  LONGHORN_VERSION:
-    sh: yq '.longhorn_version' vars.yaml
   LONGHORN_S3_ENDPOINT:
     sh: yq '.longhorn_s3_endpoint' vars.yaml
   LONGHORN_S3_ACCESS_KEY:

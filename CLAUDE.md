@@ -104,7 +104,7 @@ Client → DNS (*.xmple.io → 10.1.1.60) → Cilium LB-IPAM (L2 announcement)
 
 ### Configuration
 
-`vars.yaml` (git-ignored) holds all cluster config: node IP, versions, secrets. See `vars.yaml.example` for structure.
+`vars.yaml` (git-ignored) holds cluster config: node IP, Talos/K8s versions, and secrets. See `vars.yaml.example` for structure. Helm chart versions are pinned in each app's `Chart.yaml`, not in `vars.yaml`.
 
 `factory.yaml` defines the custom Talos image with extensions (Tailscale, Intel microcode, iSCSI).
 
