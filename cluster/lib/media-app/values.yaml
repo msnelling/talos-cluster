@@ -42,3 +42,6 @@ resources:
     memory: 256Mi
 
 sidecars: []
+
+securityContext: {}
+nodeSelector: {}

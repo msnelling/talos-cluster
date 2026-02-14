@@ -16,6 +16,10 @@ spec:
       labels:
         {{- include "media-app.selectorLabels" . | nindent 8 }}
     spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         {{- range .Values.sidecars }}
         - {{- toYaml . | nindent 10 }}
@@ -23,6 +27,10 @@ spec:
         - name: {{ include "media-app.name" . }}
           image: "{{ .Values.image.repository }}{{ if .Values.image.tag }}:{{ .Values.image.tag }}{{ end }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.containerPort }}
