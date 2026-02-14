@@ -42,9 +42,8 @@ tasks:
           --wait --timeout 5m
 
   longhorn-secret:
-    desc: Create Longhorn namespace and S3 backup secret (Longhorn itself is installed by ArgoCD)
+    desc: Create Longhorn S3 backup secret (namespace created by ArgoCD)
     cmds:
-      - kubectl create namespace longhorn-system --dry-run=client -o yaml | kubectl apply -f -
       - kubectl create secret generic longhorn-s3-secret
           --namespace longhorn-system
           --from-literal=AWS_ACCESS_KEY_ID={{.LONGHORN_S3_ACCESS_KEY}}
@@ -102,4 +101,31 @@ tasks:
           kubectl create secret generic gluetun-auth-secrets
           --namespace db3000
           --from-file=config.toml=/dev/stdin
+          --dry-run=client -o yaml | kubectl apply -f -
+
+  gitea-secrets:
+    desc: Create Gitea secrets (namespace created by ArgoCD)
+    cmds:
+      - kubectl create secret generic gitea-admin-secret
+          --namespace gitea
+          --from-literal=username={{.GITEA_ADMIN_USER}}
+          --from-literal=password={{.GITEA_ADMIN_PASSWORD}}
+          --from-literal=email={{.GITEA_ADMIN_EMAIL}}
+          --dry-run=client -o yaml | kubectl apply -f -
+      - kubectl create secret generic gitea-oauth-secret
+          --namespace gitea
+          --from-literal=key={{.GITEA_OAUTH_CLIENT_ID}}
+          --from-literal=secret={{.GITEA_OAUTH_CLIENT_SECRET}}
+          --dry-run=client -o yaml | kubectl apply -f -
+      - kubectl create secret generic gitea-config-secrets
+          --namespace gitea
+          --from-literal=security__SECRET_KEY={{.GITEA_SECRET_KEY}}
+          --from-literal=database__HOST={{.GITEA_POSTGRES_HOST}}
+          --from-literal=database__NAME={{.GITEA_POSTGRES_DB}}
+          --from-literal=database__USER={{.GITEA_POSTGRES_USER}}
+          --from-literal=database__PASSWD={{.GITEA_POSTGRES_PASSWORD}}
+          --from-literal=mailer__USER={{.GITEA_SMTP_USER}}
+          --from-literal=mailer__PASSWD={{.GITEA_SMTP_PASSWORD}}
+          --from-literal=storage__MINIO_ACCESS_KEY_ID={{.GITEA_MINIO_ACCESS_KEY}}
+          --from-literal=storage__MINIO_SECRET_ACCESS_KEY={{.GITEA_MINIO_SECRET_KEY}}
           --dry-run=client -o yaml | kubectl apply -f -

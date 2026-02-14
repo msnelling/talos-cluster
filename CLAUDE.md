@@ -60,7 +60,7 @@ Root `Taskfile.yaml` holds global vars, shared precondition helpers (`_require-n
 
 ### Bootstrap vs ArgoCD-Managed Components
 
-Only components that must exist before ArgoCD belong in the Taskfile bootstrap chain (Cilium, Traefik, cert-manager). Other components (e.g., Longhorn) should have their namespace and secrets created during bootstrap, but the actual Helm install is left to ArgoCD. ArgoCD handles CRD-before-CR ordering natively, which avoids Helm's inability to install custom resources alongside the CRDs that define them.
+Only components that must exist before ArgoCD belong in the Taskfile bootstrap chain (Cilium, Traefik, cert-manager). ArgoCD owns namespace creation for all other components via `CreateNamespace=true`. Secret tasks (e.g., `longhorn-secret`, `gitea-secrets`) run after ArgoCD has synced and created the target namespaces. The bootstrap sequence waits for ArgoCD to create namespaces before populating secrets. ArgoCD handles CRD-before-CR ordering natively, which avoids Helm's inability to install custom resources alongside the CRDs that define them.
 
 ## Architecture
 
@@ -173,5 +173,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 | `transmission-vpn-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `transmission-proxy-credentials` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `gluetun-auth-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
+| `gitea-admin-secret` | gitea | `task components:gitea-secrets` (from vars.yaml) |
+| `gitea-oauth-secret` | gitea | `task components:gitea-secrets` (from vars.yaml) |
+| `gitea-config-secrets` | gitea | `task components:gitea-secrets` (from vars.yaml) |
 
 Generate the deploy key with `ssh-keygen -t ed25519 -f argocd-repo-key -N ""` and add the public key as a read-only deploy key in GitHub repo settings.
