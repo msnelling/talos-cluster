@@ -23,3 +23,15 @@ media-app:
       memory: 2Gi
     limits:
       memory: 2Gi
+  securityContext:
+    privileged: true
+  nodeSelector:
+    intel.feature.node.kubernetes.io/gpu: "true"
+  extraVolumes:
+    - name: dri
+      hostPath:
+        path: /dev/dri
+        type: Directory
+  extraVolumeMounts:
+    - name: dri
+      mountPath: /dev/dri
