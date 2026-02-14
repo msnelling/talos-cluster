@@ -2,6 +2,7 @@ customization:
     systemExtensions:
         officialExtensions:
             - siderolabs/intel-ucode
+            - siderolabs/i915-ucode
             - siderolabs/iscsi-tools
             - siderolabs/tailscale
             - siderolabs/util-linux-tools
