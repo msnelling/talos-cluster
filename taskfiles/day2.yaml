@@ -3,36 +3,77 @@ version: "3"
 tasks:
 
   upgrade-talos:
-    desc: Upgrade Talos OS on the node
-    deps: [":_require-node-ip"]
+    desc: Upgrade Talos OS on all nodes (rolling)
+    deps: [":_require-nodes"]
     vars:
       SCHEMATIC_ID:
         sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
     cmds:
+      - for: { var: NODE_NAMES, as: NODE }
+        task: _upgrade-talos-node
+        vars:
+          NODE_NAME: "{{ .NODE }}"
+          SCHEMATIC_ID: "{{.SCHEMATIC_ID}}"
+
+  _upgrade-talos-node:
+    internal: true
+    vars:
+      NODE_IP:
+        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .ip' vars.yaml
+    cmds:
+      - echo "Upgrading Talos on {{.NODE_NAME}} ({{.NODE_IP}})..."
       - talosctl upgrade
           --context {{.CLUSTER_NAME}}
+          --nodes {{.NODE_IP}}
           --image "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"
 
   upgrade-k8s:
-    desc: Upgrade Kubernetes version
-    deps: [":_require-node-ip"]
+    desc: Upgrade Kubernetes version (cluster-wide)
+    deps: [":_require-nodes"]
     cmds:
       - talosctl upgrade-k8s
           --context {{.CLUSTER_NAME}}
           --to {{.KUBERNETES_VERSION}}
 
   reboot:
-    desc: Reboot the node
-    deps: [":_require-node-ip"]
+    desc: Reboot all nodes (rolling)
+    deps: [":_require-nodes"]
     cmds:
-      - talosctl reboot --context {{.CLUSTER_NAME}}
+      - for: { var: NODE_NAMES, as: NODE }
+        task: _reboot-node
+        vars:
+          NODE_NAME: "{{ .NODE }}"
+
+  _reboot-node:
+    internal: true
+    vars:
+      NODE_IP:
+        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .ip' vars.yaml
+    cmds:
+      - echo "Rebooting {{.NODE_NAME}} ({{.NODE_IP}})..."
+      - talosctl reboot
+          --context {{.CLUSTER_NAME}}
+          --nodes {{.NODE_IP}}
 
   reset:
-    desc: Wipe the node and start over (DESTRUCTIVE)
-    prompt: This will WIPE the node and destroy all data. Are you sure?
-    deps: [":_require-node-ip"]
+    desc: Wipe all nodes and start over (DESTRUCTIVE)
+    prompt: This will WIPE ALL NODES and destroy all data. Are you sure?
+    deps: [":_require-nodes"]
     cmds:
+      - for: { var: NODE_NAMES, as: NODE }
+        task: _reset-node
+        vars:
+          NODE_NAME: "{{ .NODE }}"
+
+  _reset-node:
+    internal: true
+    vars:
+      NODE_IP:
+        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .ip' vars.yaml
+    cmds:
+      - echo "Resetting {{.NODE_NAME}} ({{.NODE_IP}})..."
       - talosctl reset
           --context {{.CLUSTER_NAME}}
+          --nodes {{.NODE_IP}}
           --graceful=false
           --reboot

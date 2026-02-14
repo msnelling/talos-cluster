@@ -15,8 +15,6 @@ includes:
 vars:
   CLUSTER_NAME:
     sh: yq '.cluster_name' vars.yaml
-  NODE_IP:
-    sh: yq '.node_ip // ""' vars.yaml
   TALOS_VERSION:
     sh: yq '.talos_version' vars.yaml
   KUBERNETES_VERSION:
@@ -53,6 +51,21 @@ vars:
     sh: yq '.vpn_proxy_user' vars.yaml
   VPN_PROXY_PASSWORD:
     sh: yq '.vpn_proxy_password' vars.yaml
+  # Multi-node helpers
+  NODE_NAMES:
+    sh: yq '.nodes[].name' vars.yaml
+  NODE_COUNT:
+    sh: yq '.nodes | length' vars.yaml
+  BOOTSTRAP_IP:
+    sh: yq '[.nodes[] | select(.role == "worker" | not)][0].ip' vars.yaml
+  ALL_CP_IPS:
+    sh: yq '[.nodes[] | select(.role == "worker" | not) | .ip] | join(" ")' vars.yaml
+  CONTROL_PLANE_ENDPOINT:
+    sh: |
+      vip=$(yq '.control_plane_vip // ""' vars.yaml)
+      if [ -n "$vip" ]; then echo "$vip"
+      else yq '[.nodes[] | select(.role == "worker" | not)][0].ip' vars.yaml
+      fi
 
 tasks:
 
@@ -60,11 +73,11 @@ tasks:
     cmds:
       - task --list
 
-  _require-node-ip:
+  _require-nodes:
     internal: true
     preconditions:
-      - sh: '[ -n "{{.NODE_IP}}" ]'
-        msg: "NODE_IP is required. Set it in vars.yaml or run: task set-node NODE_IP=x.x.x.x"
+      - sh: yq -e '.nodes | length > 0' vars.yaml
+        msg: "No nodes defined in vars.yaml. Add at least one node to the nodes list."
 
   _require-helm:
     internal: true
@@ -72,30 +85,24 @@ tasks:
       - sh: command -v helm
         msg: "helm is required. Install with: brew install helm"
 
-  set-node:
-    desc: Save the node IP for subsequent commands
-    cmds:
-      - yq -i '.node_ip = "{{.NODE_IP}}"' vars.yaml
-      - echo "Node IP set to {{.NODE_IP}}"
-    preconditions:
-      - sh: '[ -n "{{.NODE_IP}}" ]'
-        msg: "Usage: task set-node NODE_IP=x.x.x.x"
-
   setup:
     desc: "Full initial setup: generate, patch, apply, bootstrap, kubeconfig"
+    deps: [_require-nodes]
     interactive: true
     cmds:
-      - task: set-node
-        vars: { NODE_IP: "{{.NODE_IP}}" }
       - task: setup:generate
       - task: setup:patch
       - task: setup:apply
-      - read -rp "Remove the bootable ISO/USB and press Enter to continue..."
+      - read -rp "Remove the bootable ISO/USB from all nodes and press Enter to continue..."
       - |
-        echo "Waiting for Talos API..."
+        echo "Waiting for Talos API on bootstrap node ({{.BOOTSTRAP_IP}})..."
         until talosctl --context {{.CLUSTER_NAME}} version >/dev/null 2>&1; do sleep 5; done
         echo "Talos API is up."
       - task: setup:bootstrap
+      - |
+        echo "Waiting for all {{.NODE_COUNT}} node(s) to join..."
+        until [ "$(kubectl --context admin@{{.CLUSTER_NAME}} get nodes --no-headers 2>/dev/null | wc -l | tr -d ' ')" -ge "{{.NODE_COUNT}}" ]; do sleep 5; done
+        echo "All nodes have joined."
       - task: setup:kubeconfig
       - task: components:cilium
       - task: components:traefik
@@ -108,7 +115,10 @@ tasks:
 
   reconfigure:
     desc: Re-patch and apply config changes (edit patches first, then run this)
-    deps: [_require-node-ip]
+    deps: [_require-nodes]
     cmds:
       - task: setup:patch
-      - talosctl apply-config --context {{.CLUSTER_NAME}} --file generated/controlplane.yaml
+      - for: { var: NODE_NAMES, as: NODE }
+        task: setup:_reconfigure-node
+        vars:
+          NODE_NAME: "{{ .NODE }}"

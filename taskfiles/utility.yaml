@@ -3,8 +3,8 @@ version: "3"
 tasks:
 
   status:
-    desc: Show node health and cluster status
-    deps: [":_require-node-ip"]
+    desc: Show cluster health and node status
+    deps: [":_require-nodes"]
     preconditions:
       - sh: command -v cilium
         msg: "cilium CLI is required. Install with: brew install cilium-cli"
@@ -15,19 +15,43 @@ tasks:
 
   dashboard:
     desc: Open Talos dashboard
-    deps: [":_require-node-ip"]
+    deps: [":_require-nodes"]
     interactive: true
     cmds:
       - talosctl dashboard --context {{.CLUSTER_NAME}}
 
   disks:
-    desc: List disks on the node (useful before first install)
-    deps: [":_require-node-ip"]
+    desc: List disks on all nodes (useful before first install)
+    deps: [":_require-nodes"]
     cmds:
+      - for: { var: NODE_NAMES, as: NODE }
+        task: _disks-node
+        vars:
+          NODE_NAME: "{{ .NODE }}"
+
+  _disks-node:
+    internal: true
+    vars:
+      NODE_IP:
+        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .ip' vars.yaml
+    cmds:
+      - echo "=== {{.NODE_NAME}} ({{.NODE_IP}}) ==="
       - talosctl get disks --insecure --nodes {{.NODE_IP}}
 
   links:
-    desc: List network interfaces on the node
-    deps: [":_require-node-ip"]
+    desc: List network interfaces on all nodes
+    deps: [":_require-nodes"]
     cmds:
+      - for: { var: NODE_NAMES, as: NODE }
+        task: _links-node
+        vars:
+          NODE_NAME: "{{ .NODE }}"
+
+  _links-node:
+    internal: true
+    vars:
+      NODE_IP:
+        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .ip' vars.yaml
+    cmds:
+      - echo "=== {{.NODE_NAME}} ({{.NODE_IP}}) ==="
       - talosctl get links --insecure --nodes {{.NODE_IP}}

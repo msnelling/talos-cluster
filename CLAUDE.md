@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Single-node Talos Linux Kubernetes cluster with full GitOps management via ArgoCD. All cluster components are deployed as **wrapper Helm charts** and managed declaratively through git.
+Talos Linux Kubernetes cluster with full GitOps management via ArgoCD. Supports single-node and multi-node topologies. All cluster components are deployed as **wrapper Helm charts** and managed declaratively through git.
 
 **Stack:** Talos v1.12.3, Kubernetes v1.35.0, Cilium CNI, Traefik (Gateway API), cert-manager, Longhorn, ArgoCD
 
@@ -12,7 +12,7 @@ Single-node Talos Linux Kubernetes cluster with full GitOps management via ArgoC
 
 ### Bootstrap
 ```bash
-task setup NODE_IP=x.x.x.x    # Full cluster bootstrap (generate → patch → apply → bootstrap → install all components)
+task setup    # Full cluster bootstrap for all nodes defined in vars.yaml
 ```
 
 ### Individual Component Install/Upgrade
@@ -29,11 +29,11 @@ Each Helm component task runs: `helm repo add` → `helm dependency build` → `
 
 ### Day-2 Operations
 ```bash
-task day2:upgrade-talos   # Upgrade Talos OS
-task day2:upgrade-k8s     # Upgrade Kubernetes
-task day2:reboot          # Reboot the node
-task day2:reset           # Wipe the node (DESTRUCTIVE, prompts for confirmation)
-task reconfigure          # Re-patch and apply Talos config changes (top-level wrapper)
+task day2:upgrade-talos   # Rolling Talos upgrade across all nodes
+task day2:upgrade-k8s     # Upgrade Kubernetes (cluster-wide)
+task day2:reboot          # Rolling reboot across all nodes
+task day2:reset           # Wipe all nodes (DESTRUCTIVE, prompts for confirmation)
+task reconfigure          # Re-patch and apply Talos config changes to all nodes
 ```
 
 After ArgoCD is running, component upgrades go through git: bump the version in `Chart.yaml`, push to `main`, ArgoCD auto-syncs.
@@ -42,8 +42,8 @@ After ArgoCD is running, component upgrades go through git: bump the version in 
 ```bash
 task utility:status       # Cluster health check (Talos + kubectl + Cilium)
 task utility:dashboard    # Interactive Talos dashboard
-task utility:disks        # List disks on node (useful before first install)
-task utility:links        # List network interfaces on node
+task utility:disks        # List disks on all nodes (useful before first install)
+task utility:links        # List network interfaces on all nodes
 task setup:download       # Download Talos secure-boot ISO from Image Factory
 task setup:kubeconfig     # Retrieve and merge kubeconfig
 ```
@@ -56,7 +56,7 @@ Tasks are split into domain-grouped files under `taskfiles/` with namespaced inc
 - `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, reboot, reset)
 - `taskfiles/utility.yaml` -- diagnostics (status, dashboard, disks, links)
 
-Root `Taskfile.yaml` holds global vars, shared precondition helpers (`_require-node-ip`, `_require-helm`), and top-level orchestration tasks (`setup`, `reconfigure`).
+Root `Taskfile.yaml` holds global vars, shared precondition helpers (`_require-nodes`, `_require-helm`), and top-level orchestration tasks (`setup`, `reconfigure`).
 
 ### Bootstrap vs ArgoCD-Managed Components
 
@@ -104,7 +104,7 @@ Client → DNS (*.xmple.io → 10.1.1.60) → Cilium LB-IPAM (L2 announcement)
 
 ### Configuration
 
-`vars.yaml` (git-ignored) holds cluster config: node IP, Talos/K8s versions, and secrets. See `vars.yaml.example` for structure. Helm chart versions are pinned in each app's `Chart.yaml`, not in `vars.yaml`.
+`vars.yaml` (git-ignored) holds cluster config: node list (name, IP, role, disk, interface), Talos/K8s versions, optional control plane VIP, and secrets. See `vars.yaml.example` for structure. Nodes default to `controlplane` role (mixed mode — runs both control plane and workloads). Set `role: worker` for dedicated worker nodes. Set `control_plane_vip` when using multiple control plane nodes. Helm chart versions are pinned in each app's `Chart.yaml`, not in `vars.yaml`.
 
 `factory.yaml` defines the custom Talos image with extensions (Tailscale, Intel microcode, iSCSI).
 
@@ -159,6 +159,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 **Talos enforces `baseline` PodSecurity by default on all namespaces.** Components needing privileged access (Longhorn, etc.) require a namespace template with `pod-security.kubernetes.io/enforce: privileged` label.
 
 **db3000 media apps use subpath routing** at `db3000.xmple.io/<app>`. Plex is the exception (`plex.xmple.io`) because it cannot serve from a subpath.
+
+**Multi-node control plane requires `control_plane_vip`** in `vars.yaml`. This enables Talos's built-in Virtual IP for the Kubernetes API endpoint. Single control plane nodes don't need it — the endpoint falls back to the node's IP.
 
 ## Secrets (Not in Git)
 

@@ -16,7 +16,10 @@ tasks:
 
   generate:
     internal: true
-    deps: [":_require-node-ip"]
+    deps: [":_require-nodes"]
+    preconditions:
+      - sh: yq -e '([.nodes[] | select(.role == "worker" | not)] | length) <= 1 or (.control_plane_vip == "" | not)' vars.yaml
+        msg: "control_plane_vip is required when defining multiple control plane nodes"
     cmds:
       - mkdir -p generated
       - talosctl gen secrets -o generated/secrets.yaml --force
@@ -25,11 +28,11 @@ tasks:
           --output generated/
           --force
           {{.CLUSTER_NAME}}
-          https://{{.NODE_IP}}:{{.CONTROL_PLANE_PORT}}
+          https://{{.CONTROL_PLANE_ENDPOINT}}:{{.CONTROL_PLANE_PORT}}
       - talosctl --talosconfig generated/talosconfig
-          config endpoint {{.NODE_IP}}
+          config endpoint {{.ALL_CP_IPS}}
       - talosctl --talosconfig generated/talosconfig
-          config node {{.NODE_IP}}
+          config node {{.BOOTSTRAP_IP}}
       - |
         if [ -f ~/.talos/config ]; then
           yq -i 'del(.contexts.{{.CLUSTER_NAME}})' ~/.talos/config
@@ -41,18 +44,9 @@ tasks:
     vars:
       SCHEMATIC_ID:
         sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
-      DISK:
-        sh: yq '.disk' vars.yaml
-      INTERFACE:
-        sh: yq '.interface' vars.yaml
     cmds:
       - yq -n '.machine.install.image = "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"'
           > generated/install-image-patch.yaml
-      - yq -n '
-          .machine.install.disk = "{{.DISK}}" |
-          .machine.network.interfaces[0].interface = "{{.INTERFACE}}" |
-          .machine.network.interfaces[0].dhcp = true
-        ' > generated/common-patch.yaml
       - |
         yq -n '
           .apiVersion = "v1alpha1" |
@@ -63,31 +57,94 @@ tasks:
         if [ -n "{{.TAILSCALE_ROUTES}}" ]; then
           yq -i '.environment += ["TS_ROUTES={{.TAILSCALE_ROUTES}}"]' generated/tailscale-patch.yaml
         fi
-      - talosctl machineconfig patch generated/controlplane.yaml
-          --patch @patches/controlplane.yaml
-          --patch @patches/cni.yaml
-          --patch @patches/longhorn.yaml
-          --patch @generated/common-patch.yaml
-          --patch @generated/install-image-patch.yaml
-          --patch @generated/tailscale-patch.yaml
-          --output generated/controlplane.yaml
+      - for: { var: NODE_NAMES, as: NODE }
+        task: _patch-node
+        vars:
+          NODE_NAME: "{{ .NODE }}"
+
+  _patch-node:
+    internal: true
+    vars:
+      NODE_IP:
+        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .ip' vars.yaml
+      NODE_DISK:
+        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .disk' vars.yaml
+      NODE_INTERFACE:
+        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .interface' vars.yaml
+      NODE_ROLE:
+        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .role // "controlplane"' vars.yaml
+      CONTROL_PLANE_VIP:
+        sh: yq '.control_plane_vip // ""' vars.yaml
+    cmds:
+      - echo "Patching config for {{.NODE_NAME}} ({{.NODE_IP}}, {{.NODE_ROLE}})..."
+      - yq -n '
+          .machine.install.disk = "{{.NODE_DISK}}" |
+          .machine.network.interfaces[0].interface = "{{.NODE_INTERFACE}}" |
+          .machine.network.interfaces[0].dhcp = true
+        ' > generated/{{.NODE_NAME}}-common-patch.yaml
+      - |
+        if [ "{{.NODE_ROLE}}" != "worker" ] && [ -n "{{.CONTROL_PLANE_VIP}}" ]; then
+          yq -n '.machine.network.interfaces[0].vip.ip = "{{.CONTROL_PLANE_VIP}}"' \
+            > generated/{{.NODE_NAME}}-vip-patch.yaml
+        fi
+      - |
+        SOURCE="generated/controlplane.yaml"
+        if [ "{{.NODE_ROLE}}" = "worker" ]; then
+          SOURCE="generated/worker.yaml"
+        fi
+        PATCHES="--patch @patches/cni.yaml --patch @patches/longhorn.yaml"
+        if [ "{{.NODE_ROLE}}" != "worker" ]; then
+          PATCHES="--patch @patches/controlplane.yaml $PATCHES"
+        fi
+        PATCHES="$PATCHES --patch @generated/{{.NODE_NAME}}-common-patch.yaml"
+        PATCHES="$PATCHES --patch @generated/install-image-patch.yaml"
+        PATCHES="$PATCHES --patch @generated/tailscale-patch.yaml"
+        if [ -f "generated/{{.NODE_NAME}}-vip-patch.yaml" ]; then
+          PATCHES="$PATCHES --patch @generated/{{.NODE_NAME}}-vip-patch.yaml"
+        fi
+        talosctl machineconfig patch "$SOURCE" $PATCHES --output generated/{{.NODE_NAME}}.yaml
 
   apply:
-    desc: Apply config to the node (insecure, for first install)
-    deps: [":_require-node-ip"]
+    desc: Apply config to all nodes (insecure, for first install)
+    deps: [":_require-nodes"]
     cmds:
+      - for: { var: NODE_NAMES, as: NODE }
+        task: _apply-node
+        vars:
+          NODE_NAME: "{{ .NODE }}"
+
+  _apply-node:
+    internal: true
+    vars:
+      NODE_IP:
+        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .ip' vars.yaml
+    cmds:
+      - echo "Applying config to {{.NODE_NAME}} ({{.NODE_IP}})..."
       - talosctl apply-config --insecure
           --nodes {{.NODE_IP}}
-          --file generated/controlplane.yaml
+          --file generated/{{.NODE_NAME}}.yaml
+
+  _reconfigure-node:
+    internal: true
+    vars:
+      NODE_IP:
+        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .ip' vars.yaml
+    cmds:
+      - echo "Reconfiguring {{.NODE_NAME}} ({{.NODE_IP}})..."
+      - talosctl apply-config
+          --context {{.CLUSTER_NAME}}
+          --nodes {{.NODE_IP}}
+          --file generated/{{.NODE_NAME}}.yaml
 
   bootstrap:
     internal: true
-    deps: [":_require-node-ip"]
+    deps: [":_require-nodes"]
     cmds:
+      - echo "Bootstrapping cluster on {{.BOOTSTRAP_IP}}..."
       - talosctl bootstrap --context {{.CLUSTER_NAME}}
 
   kubeconfig:
     desc: Retrieve kubeconfig and merge into ~/.kube/config
-    deps: [":_require-node-ip"]
+    deps: [":_require-nodes"]
     cmds:
       - talosctl kubeconfig --context {{.CLUSTER_NAME}}
