@@ -1,0 +1,68 @@
+gitea:
+  postgresql-ha:
+    enabled: false
+  postgresql:
+    enabled: false
+
+  valkey-cluster:
+    enabled: false
+  valkey:
+    enabled: true
+    architecture: standalone
+    global:
+      valkey:
+        password: "changeme"
+    master:
+      persistence:
+        size: 1Gi
+
+  persistence:
+    enabled: true
+    create: false
+    mount: true
+    claimName: gitea-shared-storage
+
+  service:
+    ssh:
+      type: ClusterIP
+      port: 22
+      clusterIP:
+
+  gitea:
+    admin:
+      existingSecret: gitea-admin-secret
+
+    config:
+      server:
+        DOMAIN: gitea.xmple.io
+        ROOT_URL: https://gitea.xmple.io/
+        SSH_DOMAIN: gitea.xmple.io
+        SSH_PORT: 22
+        SSH_LISTEN_PORT: 2222
+      database:
+        DB_TYPE: postgres
+      service:
+        DISABLE_REGISTRATION: true
+      migrations:
+        ALLOWED_DOMAINS: "github.com,*.github.com"
+      oauth2:
+        ACCOUNT_LINKING: login
+      actions:
+        ENABLED: true
+        DEFAULT_ACTIONS_URL: github
+      storage:
+        STORAGE_TYPE: minio
+        MINIO_ENDPOINT: s3.xmple.io:9000
+        MINIO_USE_SSL: true
+      mailer:
+        ENABLED: true
+        SMTP_ADDR: smtp.mail.me.com
+        SMTP_PORT: 587
+        PROTOCOL: smtp+starttls
+        FROM: '"Gitea" <noreply@xmple.io>'
+      ssh.minimum_key_sizes:
+        RSA: 2048
+
+    additionalConfigSources:
+      - secret:
+          secretName: gitea-config-secrets

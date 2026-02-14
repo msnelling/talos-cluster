@@ -66,10 +66,6 @@ vars:
     sh: yq '.gitea_admin_password' vars.yaml
   GITEA_ADMIN_EMAIL:
     sh: yq '.gitea_admin_email' vars.yaml
-  GITEA_OAUTH_CLIENT_ID:
-    sh: yq '.gitea_oauth_client_id' vars.yaml
-  GITEA_OAUTH_CLIENT_SECRET:
-    sh: yq '.gitea_oauth_client_secret' vars.yaml
   GITEA_SMTP_USER:
     sh: yq '.gitea_smtp_user' vars.yaml
   GITEA_SMTP_PASSWORD:

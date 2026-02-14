@@ -18,15 +18,3 @@ spec:
   serviceSelector:
     matchLabels:
       app.kubernetes.io/part-of: db3000
----
-apiVersion: cilium.io/v2
-kind: CiliumLoadBalancerIPPool
-metadata:
-  name: gitea-pool
-spec:
-  blocks:
-    - start: 10.1.1.62
-      stop: 10.1.1.62
-  serviceSelector:
-    matchLabels:
-      app.kubernetes.io/part-of: gitea

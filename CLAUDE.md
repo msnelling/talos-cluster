@@ -174,7 +174,6 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 | `transmission-proxy-credentials` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `gluetun-auth-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `gitea-admin-secret` | gitea | `task components:gitea-secrets` (from vars.yaml) |
-| `gitea-oauth-secret` | gitea | `task components:gitea-secrets` (from vars.yaml) |
 | `gitea-config-secrets` | gitea | `task components:gitea-secrets` (from vars.yaml) |
 
 Generate the deploy key with `ssh-keygen -t ed25519 -f argocd-repo-key -N ""` and add the public key as a read-only deploy key in GitHub repo settings.
