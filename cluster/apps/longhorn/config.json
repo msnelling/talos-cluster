@@ -1,1 +1,1 @@
-{"appName": "longhorn", "namespace": "longhorn-system", "chartPath": "cluster/apps/longhorn"}
+{"appName": "longhorn", "namespace": "longhorn-system", "chartPath": "cluster/apps/longhorn", "group": "platform"}

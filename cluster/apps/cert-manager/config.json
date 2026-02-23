@@ -1,1 +1,1 @@
-{"appName": "cert-manager", "namespace": "cert-manager", "chartPath": "cluster/apps/cert-manager"}
+{"appName": "cert-manager", "namespace": "cert-manager", "chartPath": "cluster/apps/cert-manager", "group": "platform"}

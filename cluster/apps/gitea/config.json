@@ -1,1 +1,1 @@
-{"appName": "gitea", "namespace": "gitea", "chartPath": "cluster/apps/gitea"}
+{"appName": "gitea", "namespace": "gitea", "chartPath": "cluster/apps/gitea", "group": "services"}

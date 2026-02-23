@@ -1,1 +1,1 @@
-{"appName": "traefik", "namespace": "traefik", "chartPath": "cluster/apps/traefik"}
+{"appName": "traefik", "namespace": "traefik", "chartPath": "cluster/apps/traefik", "group": "networking"}
