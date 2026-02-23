@@ -1,5 +1,6 @@
 {
   "appName": "transmission",
   "namespace": "db3000",
-  "chartPath": "cluster/db3000/transmission"
+  "chartPath": "cluster/db3000/transmission",
+  "group": "db3000"
 }

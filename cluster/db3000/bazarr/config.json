@@ -1,5 +1,6 @@
 {
   "appName": "bazarr",
   "namespace": "db3000",
-  "chartPath": "cluster/db3000/bazarr"
+  "chartPath": "cluster/db3000/bazarr",
+  "group": "db3000"
 }

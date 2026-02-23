@@ -1,5 +1,6 @@
 {
   "appName": "nzbget",
   "namespace": "db3000",
-  "chartPath": "cluster/db3000/nzbget"
+  "chartPath": "cluster/db3000/nzbget",
+  "group": "db3000"
 }

@@ -1,5 +1,6 @@
 {
   "appName": "prowlarr",
   "namespace": "db3000",
-  "chartPath": "cluster/db3000/prowlarr"
+  "chartPath": "cluster/db3000/prowlarr",
+  "group": "db3000"
 }

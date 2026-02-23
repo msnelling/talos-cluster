@@ -1,5 +1,6 @@
 {
   "appName": "plex",
   "namespace": "db3000",
-  "chartPath": "cluster/db3000/plex"
+  "chartPath": "cluster/db3000/plex",
+  "group": "db3000"
 }

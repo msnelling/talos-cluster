@@ -1,5 +1,6 @@
 {
   "appName": "audiobookshelf",
   "namespace": "db3000",
-  "chartPath": "cluster/db3000/audiobookshelf"
+  "chartPath": "cluster/db3000/audiobookshelf",
+  "group": "db3000"
 }

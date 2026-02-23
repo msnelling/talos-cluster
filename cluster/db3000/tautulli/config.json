@@ -1,5 +1,6 @@
 {
   "appName": "tautulli",
   "namespace": "db3000",
-  "chartPath": "cluster/db3000/tautulli"
+  "chartPath": "cluster/db3000/tautulli",
+  "group": "db3000"
 }

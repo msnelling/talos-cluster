@@ -1,5 +1,6 @@
 {
   "appName": "jellyfin",
   "namespace": "db3000",
-  "chartPath": "cluster/db3000/jellyfin"
+  "chartPath": "cluster/db3000/jellyfin",
+  "group": "db3000"
 }
