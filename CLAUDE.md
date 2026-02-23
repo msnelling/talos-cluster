@@ -122,6 +122,18 @@ Client → DNS (*.xmple.io → 10.1.1.60) → Cilium LB-IPAM (L2 announcement)
 
 **To reinstall cert-manager**, delete the stale ValidatingWebhookConfiguration first, then wait ~15s after install for cainjector to populate CA bundles before retrying.
 
+### App Groups
+
+Apps are labeled with `app-group` via config.json's `group` field. Groups: `networking`, `platform`, `services`, `db3000`.
+
+```bash
+# Disable auto-sync for maintenance
+argocd app list -l app-group=db3000 -o name | xargs -I {} argocd app set {} --sync-policy none
+
+# Re-enable auto-sync
+argocd app list -l app-group=db3000 -o name | xargs -I {} argocd app set {} --sync-policy automated --self-heal --auto-prune
+```
+
 ## Helm Chart Versions
 
 **Never guess chart versions.** Always verify with `helm search repo <chart> --versions | head` or check the upstream GitHub releases page. Use `helm repo update` first if results seem stale.
