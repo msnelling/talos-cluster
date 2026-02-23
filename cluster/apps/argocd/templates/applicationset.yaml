@@ -5,6 +5,9 @@ metadata:
   namespace: argocd
 spec:
   goTemplate: true
+  ignoreApplicationDifferences:
+    - jsonPointers:
+        - /spec/syncPolicy
   generators:
     - git:
         repoURL: git@github.com:xmple/talos-cluster.git
