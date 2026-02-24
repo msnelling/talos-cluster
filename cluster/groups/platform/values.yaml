@@ -14,3 +14,6 @@ apps:
   - name: smb-csi
     namespace: smb-csi
     path: cluster/apps/smb-csi
+  - name: renovate
+    namespace: renovate
+    path: cluster/apps/renovate
