@@ -111,6 +111,7 @@ Client → DNS (*.xmple.io → 10.1.1.60) → Cilium LB-IPAM (L2 announcement)
 
 - **Cilium** provides LoadBalancer IPs via LB-IPAM + L2 announcements (no MetalLB needed)
 - **Traefik** is the Gateway API controller; shared wildcard Gateway in traefik namespace
+- **HTTPRoutes must specify `sectionName: websecure`** in parentRefs to bind only to the HTTPS listener. HTTP-to-HTTPS redirect is handled by a dedicated HTTPRoute on the `web` listener using a `RequestRedirect` filter (standard Gateway API pattern).
 - **cert-manager** watches Gateway annotations and auto-creates wildcard certificates via Cloudflare DNS-01
 
 ### Configuration
@@ -184,6 +185,12 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 **Talos enforces `baseline` PodSecurity by default on all namespaces.** Components needing privileged access (Longhorn, etc.) require a namespace template with `pod-security.kubernetes.io/enforce: privileged` label.
 
 **db3000 media apps use subpath routing** at `db3000.xmple.io/<app>`. Plex is the exception (`plex.xmple.io`) because it cannot serve from a subpath.
+
+**Gitea chart templates `targetPort` from `gitea.config.server.HTTP_PORT`**, not from `service.http.targetPort`. This value must be explicitly set in the wrapper values or the Service renders with an empty targetPort that fails schema validation.
+
+**Always validate charts locally before pushing:** `helm dependency build <chart> && helm lint <chart> && helm template test <chart> | kubeconform -strict -ignore-missing-schemas -summary`
+
+**Traefik chart enforces a values schema.** Always run `helm show values traefik/traefik --version <ver>` to verify value paths before adding new configuration. `helm lint` catches schema violations locally.
 
 **Multi-node control plane requires `control_plane_vip`** in `vars.yaml`. This enables Talos's built-in Virtual IP for the Kubernetes API endpoint. Single control plane nodes don't need it — the endpoint falls back to the node's IP.
 
