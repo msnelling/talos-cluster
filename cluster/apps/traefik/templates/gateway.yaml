@@ -21,13 +21,6 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
-    - name: web
-      protocol: HTTP
-      port: 8000
-      hostname: "*.xmple.io"
-      allowedRoutes:
-        namespaces:
-          from: All
     - name: gitea-ssh
       protocol: TCP
       port: 2222

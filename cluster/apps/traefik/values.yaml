@@ -10,6 +10,13 @@ traefik:
     enabled: false
 
   ports:
+    web:
+      http:
+        redirections:
+          entryPoint:
+            to: websecure
+            scheme: https
+            permanent: true
     gitea-ssh:
       port: 2222
       expose:
