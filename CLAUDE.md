@@ -124,13 +124,16 @@ Client → DNS (*.xmple.io → 10.1.1.60) → Cilium LB-IPAM (L2 announcement)
 
 **To make breaking ArgoCD changes safely:**
 1. `kubectl scale statefulset argocd-application-controller -n argocd --replicas=0`
-2. Make changes, commit, push to git
-3. `helm upgrade --install argocd cluster/apps/argocd -n argocd --force-conflicts --wait`
-4. `kubectl scale statefulset argocd-application-controller -n argocd --replicas=1`
+2. Delete any old resources from the cluster that will be replaced (e.g., ApplicationSets, Applications)
+3. Make changes, commit, push to git
+4. `helm upgrade --install argocd cluster/apps/argocd -n argocd --force-conflicts --wait`
+5. `kubectl scale statefulset argocd-application-controller -n argocd --replicas=1`
+
+**Replacing resource generators (ApplicationSets, app-of-apps charts):** Always delete the old generator from the cluster before removing its discovery sources from git. If you remove discovery files (e.g., config.json) while the old generator is still running, it will interpret "zero sources" as "delete all generated resources" and cascade-delete everything it manages — including CNI, ingress, and storage.
 
 **After reinstalling Cilium**, restart pods in other namespaces — they get stale network identities causing "operation not permitted" TCP errors: `kubectl rollout restart deployment -n argocd`
 
-**To reinstall cert-manager**, delete the stale ValidatingWebhookConfiguration first, then wait ~15s after install for cainjector to populate CA bundles before retrying.
+**To reinstall cert-manager**, delete both stale webhook configurations first (`kubectl delete validatingwebhookconfiguration cert-manager-webhook && kubectl delete mutatingwebhookconfiguration cert-manager-webhook`), then wait ~15s after install for cainjector to populate CA bundles before retrying.
 
 ### App Groups
 
@@ -174,6 +177,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 **Longhorn v1.11.0 chart moved backup settings** from `defaultSettings.backupTarget` to `defaultBackupStore.backupTarget`. Always run `helm show values` to verify value paths when adding or upgrading charts.
 
 **Longhorn on ArgoCD requires `preUpgradeChecker.jobEnabled: false`** — the pre-upgrade job uses Helm hooks which ArgoCD skips, causing sync failures.
+
+**Longhorn's pre-delete hook (`longhorn-uninstall`) is destructive.** If a Longhorn Application is deleted with `resources-finalizer` and `pre-delete-finalizer`, ArgoCD will repeatedly run the uninstall job. Fix by removing finalizers from the Application (`kubectl patch application longhorn -n argocd --type=json -p='[{"op":"remove","path":"/metadata/finalizers"}]'`), then deleting the uninstall job.
 
 **Talos enforces `baseline` PodSecurity by default on all namespaces.** Components needing privileged access (Longhorn, etc.) require a namespace template with `pod-security.kubernetes.io/enforce: privileged` label.
 
