@@ -1,0 +1,10 @@
+repoURL: git@github.com:xmple/talos-cluster.git
+targetRevision: main
+project: cluster
+
+autoSync: true
+
+apps:
+  - name: gitea
+    namespace: gitea
+    path: cluster/apps/gitea

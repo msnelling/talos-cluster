@@ -1,0 +1,4 @@
+apiVersion: v2
+name: group-services
+version: 0.1.0
+description: Services app group (gitea)
