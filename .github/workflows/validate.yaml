@@ -120,6 +120,7 @@ jobs:
 
             helm dependency build "$chart_dir"
             helm lint "$chart_dir"
+
             helm template test "$chart_dir" | kubeconform -strict -ignore-missing-schemas -summary
 
             echo "=== $chart_dir passed ==="

@@ -9,6 +9,7 @@ spec:
       kind: Gateway
       name: traefik-gateway
       namespace: traefik
+      sectionName: websecure
   hostnames:
     - longhorn.xmple.io
   rules:

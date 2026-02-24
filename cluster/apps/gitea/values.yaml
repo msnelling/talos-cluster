@@ -34,6 +34,7 @@ gitea:
 
     config:
       server:
+        HTTP_PORT: 3000
         DOMAIN: gitea.xmple.io
         ROOT_URL: https://gitea.xmple.io/
         SSH_DOMAIN: gitea.xmple.io
