@@ -124,3 +124,11 @@ tasks:
           --from-literal=mailer="$(printf 'USER={{.GITEA_SMTP_USER}}\nPASSWD={{.GITEA_SMTP_PASSWORD}}')" \
           --from-literal=storage="$(printf 'MINIO_ACCESS_KEY_ID={{.GITEA_MINIO_ACCESS_KEY}}\nMINIO_SECRET_ACCESS_KEY={{.GITEA_MINIO_SECRET_KEY}}')" \
           --dry-run=client -o yaml | kubectl apply -f -
+
+  renovate-secret:
+    desc: Create Renovate GitHub token secret (namespace created by ArgoCD)
+    cmds:
+      - kubectl create secret generic renovate-token
+          --namespace renovate
+          --from-literal=RENOVATE_TOKEN={{.RENOVATE_GITHUB_TOKEN}}
+          --dry-run=client -o yaml | kubectl apply -f -
