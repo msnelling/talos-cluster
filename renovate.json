@@ -1,6 +1,14 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "automerge": true,
+  "automergeType": "pr",
+  "ignoreTests": true,
   "packageRules": [
+    {
+      "description": "Require manual review for major version bumps",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
     {
       "description": "Exclude date-based tags (2021.x.x etc) for LinuxServer images that use application semver",
       "matchDatasources": ["docker"],
