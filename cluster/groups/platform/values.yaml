@@ -1,0 +1,16 @@
+repoURL: git@github.com:xmple/talos-cluster.git
+targetRevision: main
+project: cluster
+
+autoSync: true
+
+apps:
+  - name: cert-manager
+    namespace: cert-manager
+    path: cluster/apps/cert-manager
+  - name: longhorn
+    namespace: longhorn-system
+    path: cluster/apps/longhorn
+  - name: smb-csi
+    namespace: smb-csi
+    path: cluster/apps/smb-csi

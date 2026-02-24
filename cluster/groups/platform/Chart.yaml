@@ -1,0 +1,4 @@
+apiVersion: v2
+name: group-platform
+version: 0.1.0
+description: Platform app group (cert-manager, longhorn, smb-csi)
