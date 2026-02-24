@@ -54,5 +54,5 @@ gitea_secret_key: "your-gitea-secret-key"
 github_oauth_client_id: "your-github-oauth-client-id"
 github_oauth_client_secret: "your-github-oauth-client-secret"
 
-# Renovate
-renovate_github_token: "ghp_your-github-pat-with-repo-scope"
+# Renovate (GitHub App)
+renovate_github_app_id: "123456"

@@ -40,25 +40,26 @@ renovate:
           "extends": ["config:recommended"]
         }
       }
-  secrets:
-    RENOVATE_TOKEN: ""
+  existingSecret: renovate-token
 ```
 
-The `RENOVATE_TOKEN` is a GitHub PAT with repo scope, injected at install time via `helm --set` (never stored in git).
+### Secret Handling (GitHub App)
 
-### Secret Handling
+Authentication uses a GitHub App instead of a PAT. This provides scoped permissions, auto-rotating tokens, and no expiry management.
 
-New `renovate_github_token` field in `vars.yaml`. Injected via `task components:renovate` which runs:
+**Setup:** Create a GitHub App with Contents (read/write), Pull requests (read/write), Issues (read/write), Metadata (read-only) permissions. Install it on the target repo. Download the private key as `renovate-app-key.pem`.
+
+The secret contains `RENOVATE_GITHUB_APP_ID` (from `vars.yaml`) and `RENOVATE_GITHUB_APP_KEY` (from the PEM file). Injected via `task components:renovate-secret`:
 
 ```bash
-helm upgrade --install renovate cluster/apps/renovate \
+kubectl create secret generic renovate-token \
   --namespace renovate \
-  --set renovate.secrets.RENOVATE_TOKEN={{.RENOVATE_GITHUB_TOKEN}} \
-  --force-conflicts \
-  --wait --timeout 5m
+  --from-literal=RENOVATE_GITHUB_APP_ID={{.RENOVATE_GITHUB_APP_ID}} \
+  --from-file=RENOVATE_GITHUB_APP_KEY=renovate-app-key.pem \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-After initial bootstrap, ArgoCD manages the chart. The secret persists in the cluster independently.
+The secret is created after ArgoCD syncs the chart and creates the namespace.
 
 ### ArgoCD Integration
 
@@ -83,6 +84,7 @@ Runs every hour (`0 * * * *`). Concurrency policy `Forbid` prevents overlapping 
 | `cluster/apps/renovate/Chart.yaml` | Create — wrapper chart |
 | `cluster/apps/renovate/values.yaml` | Create — CronJob + Renovate config |
 | `cluster/groups/platform/values.yaml` | Edit — add renovate to app list |
-| `taskfiles/components.yaml` | Edit — add renovate task for secret injection |
-| `vars.yaml.example` | Edit — add renovate_github_token field |
+| `taskfiles/components.yaml` | Edit — add renovate-secret task (GitHub App) |
+| `vars.yaml.example` | Edit — add renovate_github_app_id field |
+| `.gitignore` | Edit — add renovate-app-key.pem |
 | `CLAUDE.md` | Edit — add renovate secret to secrets table |

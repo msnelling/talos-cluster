@@ -4,6 +4,7 @@ kubeconfig
 vars.yaml
 argocd-repo-key
 argocd-repo-key.pub
+renovate-app-key.pem
 **/charts/
 **/Chart.lock
 node_modules/

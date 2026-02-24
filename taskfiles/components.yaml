@@ -126,9 +126,15 @@ tasks:
           --dry-run=client -o yaml | kubectl apply -f -
 
   renovate-secret:
-    desc: Create Renovate GitHub token secret (namespace created by ArgoCD)
+    desc: Create Renovate GitHub App secret (namespace created by ArgoCD)
+    preconditions:
+      - sh: test -f renovate-app-key.pem
+        msg: |
+          renovate-app-key.pem not found. Download it from:
+            GitHub → Settings → Developer settings → GitHub Apps → your app → Generate a private key
     cmds:
       - kubectl create secret generic renovate-token
           --namespace renovate
-          --from-literal=RENOVATE_TOKEN={{.RENOVATE_GITHUB_TOKEN}}
+          --from-literal=RENOVATE_GITHUB_APP_ID={{.RENOVATE_GITHUB_APP_ID}}
+          --from-file=RENOVATE_GITHUB_APP_KEY=renovate-app-key.pem
           --dry-run=client -o yaml | kubectl apply -f -

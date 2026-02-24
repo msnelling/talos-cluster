@@ -82,8 +82,8 @@ vars:
   GITHUB_OAUTH_CLIENT_SECRET:
     sh: yq '.github_oauth_client_secret' vars.yaml
   # Renovate
-  RENOVATE_GITHUB_TOKEN:
-    sh: yq '.renovate_github_token' vars.yaml
+  RENOVATE_GITHUB_APP_ID:
+    sh: yq '.renovate_github_app_id' vars.yaml
   # Multi-node helpers
   NODE_NAMES:
     sh: yq '.nodes[].name' vars.yaml
