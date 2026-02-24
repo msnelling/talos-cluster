@@ -11,6 +11,7 @@ spec:
       kind: Gateway
       name: traefik-gateway
       namespace: traefik
+      sectionName: websecure
   hostnames:
     - {{ .Values.httproute.hostname }}
   rules:

@@ -9,6 +9,7 @@ spec:
       kind: Gateway
       name: traefik-gateway
       namespace: traefik
+      sectionName: websecure
   hostnames:
     - argocd.xmple.io
   rules:
