@@ -83,7 +83,7 @@ Media apps under `cluster/apps/` use a shared library chart at `cluster/lib/medi
 
 ### ArgoCD GitOps Flow
 
-**App-of-apps pattern** organizes applications into groups. Group charts under `cluster/groups/<group>/` template Application CRs for their member apps. The argocd chart creates one parent Application per group (`group-networking`, `group-platform`, `group-services`, `group-db3000`).
+**App-of-apps pattern** organizes applications into groups. Group charts under `cluster/groups/<group>/` template Application CRs for their member apps. The argocd chart creates one parent Application per group (`app-networking`, `app-platform`, `app-services`, `app-db3000`).
 
 ```
 cluster/groups/<group>/
@@ -140,7 +140,7 @@ Client → DNS (*.xmple.io → 10.1.1.60) → Cilium LB-IPAM (L2 announcement)
 Apps are organized into groups via charts under `cluster/groups/` (networking, platform, services, db3000). Each group is an ArgoCD Application that renders child Application CRs.
 
 **Pause a group for maintenance:**
-1. Open group app (e.g., `group-db3000`) in ArgoCD UI
+1. Open group app (e.g., `app-db3000`) in ArgoCD UI
 2. App Details → Parameters → override `autoSync` = `false`
 3. Click Sync
 

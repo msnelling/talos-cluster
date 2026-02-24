@@ -1,4 +1,4 @@
 apiVersion: v2
-name: group-db3000
+name: app-db3000
 version: 0.1.0
 description: Media app group (db3000)
