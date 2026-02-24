@@ -72,7 +72,6 @@ Every component under `cluster/apps/<name>/` is a self-contained Helm chart wrap
 cluster/apps/<name>/
   Chart.yaml        # Declares upstream chart as dependency with pinned version
   values.yaml       # Config nested under dependency name (e.g., cilium:, traefik:, argo-cd:)
-  config.json       # ArgoCD app metadata: {"appName", "namespace", "chartPath"}
   templates/        # Optional raw K8s manifests deployed alongside the dependency
 ```
 
@@ -84,9 +83,20 @@ Media apps under `cluster/apps/` use a shared library chart at `cluster/lib/medi
 
 ### ArgoCD GitOps Flow
 
-**ApplicationSet** (git files generator) scans `cluster/apps/*/config.json` to auto-discover apps. Each config.json declares the app name, target namespace, and chart path.
+**App-of-apps pattern** organizes applications into groups. Group charts under `cluster/groups/<group>/` template Application CRs for their member apps. The argocd chart creates one parent Application per group (`group-networking`, `group-platform`, `group-services`, `group-db3000`).
 
-**ArgoCD self-management** is handled separately via a dedicated `Application` resource (not the ApplicationSet) with `prune: false` to prevent ArgoCD from ever deleting its own resources.
+```
+cluster/groups/<group>/
+  Chart.yaml              # Standalone chart, no dependencies
+  values.yaml             # App list, autoSync toggle, repo config
+  templates/
+    applications.yaml     # Renders Application CRs from app list
+    namespace.yaml        # (db3000 only) Namespace with PodSecurity labels
+```
+
+**Adding a new app:** Add an entry to the group's `values.yaml` and create the app chart. Push to git.
+
+**ArgoCD self-management** is handled separately via a dedicated `Application` resource with `prune: false` to prevent ArgoCD from ever deleting its own resources.
 
 **Sync policy:** All apps use auto-sync + self-heal + ServerSideApply. Non-ArgoCD apps also have prune enabled.
 
@@ -124,15 +134,16 @@ Client → DNS (*.xmple.io → 10.1.1.60) → Cilium LB-IPAM (L2 announcement)
 
 ### App Groups
 
-Apps are labeled with `app-group` via config.json's `group` field. Groups: `networking`, `platform`, `services`, `db3000`.
+Apps are organized into groups via charts under `cluster/groups/` (networking, platform, services, db3000). Each group is an ArgoCD Application that renders child Application CRs.
 
-```bash
-# Disable auto-sync for maintenance
-argocd app list -l app-group=db3000 -o name | xargs -I {} argocd app set {} --sync-policy none
+**Pause a group for maintenance:**
+1. Open group app (e.g., `group-db3000`) in ArgoCD UI
+2. App Details → Parameters → override `autoSync` = `false`
+3. Click Sync
 
-# Re-enable auto-sync
-argocd app list -l app-group=db3000 -o name | xargs -I {} argocd app set {} --sync-policy automated --self-heal --auto-prune
-```
+**Resume after maintenance:**
+1. Open group app → Parameters → remove `autoSync` override
+2. Click Sync
 
 ## Helm Chart Versions
 
@@ -145,10 +156,6 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 ## Critical Gotchas
 
 **Gateway listener ports must be container ports (8000/8443), not service ports (80/443).** Traefik maps entrypoints by container port internally.
-
-**Helm template expressions in ApplicationSet must be escaped** with backtick syntax so Helm passes them through to ArgoCD: `{{ `{{.appName}}` }}`
-
-**config.json uses `chartPath` not `path`** — ArgoCD's git files generator injects its own `path` object that would collide.
 
 **Cilium on Talos requires KubePrism** (`k8sServiceHost: localhost`, `k8sServicePort: 7445`) because the API server isn't network-routable during CNI bootstrap.
 
