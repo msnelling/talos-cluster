@@ -23,6 +23,7 @@ task components:cert-manager     # Install/upgrade cert-manager (cert-manager na
 task components:longhorn-secret  # Create Longhorn namespace + S3 backup secret
 task components:argocd           # Install/upgrade ArgoCD (argocd namespace)
 task components:db3000-secrets  # Create db3000 namespace + media app secrets
+task components:renovate-secret  # Create Renovate GitHub token secret
 ```
 
 Each Helm component task runs: `helm repo add` → `helm dependency build` → `helm upgrade --install` with `--force-conflicts` (required for Helm 4 SSA compatibility with ArgoCD).
@@ -200,5 +201,6 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 | `gluetun-auth-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `gitea-admin-secret` | gitea | `task components:gitea-secrets` (from vars.yaml) |
 | `gitea-config-secrets` | gitea | `task components:gitea-secrets` (from vars.yaml) |
+| `renovate-token` | renovate | `task components:renovate-secret` (from vars.yaml) |
 
 Generate the deploy key with `ssh-keygen -t ed25519 -f argocd-repo-key -N ""` and add the public key as a read-only deploy key in GitHub repo settings.
