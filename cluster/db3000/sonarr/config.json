@@ -1,6 +1,0 @@
-{
-  "appName": "sonarr",
-  "namespace": "db3000",
-  "chartPath": "cluster/db3000/sonarr",
-  "group": "db3000"
-}
