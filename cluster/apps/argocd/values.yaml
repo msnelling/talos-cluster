@@ -5,3 +5,20 @@ argo-cd:
   configs:
     params:
       server.insecure: true
+
+    cm:
+      url: https://argocd.xmple.io
+      dex.config: |
+        connectors:
+          - type: github
+            id: github
+            name: GitHub
+            config:
+              clientID: REPLACE_WITH_GITHUB_CLIENT_ID
+              clientSecret: $dex.github.clientSecret
+              orgs:
+                - name: xmple
+
+    rbac:
+      policy.default: role:admin
+      scopes: "[groups]"
