@@ -75,6 +75,7 @@ tasks:
       - helm dependency build cluster/apps/argocd
       - helm upgrade --install argocd cluster/apps/argocd
           --namespace argocd
+          --set argo-cd.configs.secret.extra.dex\\.github\\.clientSecret={{.GITHUB_OAUTH_CLIENT_SECRET}}
           --force-conflicts
           --wait --timeout 5m
 

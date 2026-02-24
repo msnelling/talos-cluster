@@ -76,6 +76,9 @@ vars:
     sh: yq '.gitea_minio_secret_key' vars.yaml
   GITEA_SECRET_KEY:
     sh: yq '.gitea_secret_key' vars.yaml
+  # ArgoCD GitHub OAuth
+  GITHUB_OAUTH_CLIENT_SECRET:
+    sh: yq '.github_oauth_client_secret' vars.yaml
   # Multi-node helpers
   NODE_NAMES:
     sh: yq '.nodes[].name' vars.yaml
