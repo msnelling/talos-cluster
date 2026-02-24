@@ -193,6 +193,7 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 | `cloudflare-api-token` | cert-manager | `task components:cert-manager` (from vars.yaml) |
 | `longhorn-s3-secret` | longhorn-system | `task components:longhorn-secret` (from vars.yaml) |
 | `argocd-repo-key` | argocd | `task components:argocd` (from local `argocd-repo-key` file) |
+| `argocd-secret` (dex.github.clientSecret) | argocd | `task components:argocd` (from vars.yaml) |
 | `media-smb-creds` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `transmission-vpn-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `transmission-proxy-credentials` | db3000 | `task components:db3000-secrets` (from vars.yaml) |

@@ -49,3 +49,6 @@ gitea_smtp_password: "your-smtp-password"
 gitea_minio_access_key: "your-minio-access-key"
 gitea_minio_secret_key: "your-minio-secret-key"
 gitea_secret_key: "your-gitea-secret-key"
+
+# ArgoCD GitHub OAuth
+github_oauth_client_secret: "your-github-oauth-client-secret"
