@@ -10,7 +10,7 @@ spec:
       name: traefik-gateway
       namespace: traefik
   hostnames:
-    - argocd-beta.xmple.io
+    - argocd.xmple.io
   rules:
     - matches:
         - path:
