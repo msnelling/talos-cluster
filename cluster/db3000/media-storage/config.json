@@ -1,6 +1,0 @@
-{
-  "appName": "media-storage",
-  "namespace": "db3000",
-  "chartPath": "cluster/db3000/media-storage",
-  "group": "db3000"
-}

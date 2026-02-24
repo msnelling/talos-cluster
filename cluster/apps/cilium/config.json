@@ -1,1 +1,0 @@
-{"appName": "cilium", "namespace": "kube-system", "chartPath": "cluster/apps/cilium", "group": "networking"}
