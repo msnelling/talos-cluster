@@ -1,0 +1,4 @@
+apiVersion: v2
+name: group-networking
+version: 0.1.0
+description: Networking app group (cilium, traefik)

@@ -1,0 +1,13 @@
+repoURL: git@github.com:xmple/talos-cluster.git
+targetRevision: main
+project: cluster
+
+autoSync: true
+
+apps:
+  - name: cilium
+    namespace: kube-system
+    path: cluster/apps/cilium
+  - name: traefik
+    namespace: traefik
+    path: cluster/apps/traefik
