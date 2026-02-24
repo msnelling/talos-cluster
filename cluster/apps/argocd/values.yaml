@@ -14,7 +14,7 @@ argo-cd:
             id: github
             name: GitHub
             config:
-              clientID: REPLACE_WITH_GITHUB_CLIENT_ID
+              clientID: $dex.github.clientID
               clientSecret: $dex.github.clientSecret
               orgs:
                 - name: xmple
