@@ -1,0 +1,126 @@
+name: Validate
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  yaml-lint:
+    name: YAML Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get changed files
+        id: changed
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            **/*.yaml
+            **/*.yml
+          files_ignore: |
+            **/templates/**
+
+      - name: Install yamllint
+        if: steps.changed.outputs.any_changed == 'true'
+        run: pip install yamllint
+
+      - name: Lint YAML files
+        if: steps.changed.outputs.any_changed == 'true'
+        env:
+          CHANGED_FILES: ${{ steps.changed.outputs.all_changed_files }}
+        run: echo "$CHANGED_FILES" | tr ' ' '\n' | xargs yamllint -c .yamllint.yaml
+
+  renovate-validate:
+    name: Validate Renovate Config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check if renovate.json changed
+        id: changed
+        uses: tj-actions/changed-files@v45
+        with:
+          files: renovate.json
+
+      - name: Validate renovate config
+        if: steps.changed.outputs.any_changed == 'true'
+        run: npx --yes --package renovate -- renovate-config-validator renovate.json
+
+  helm-validate:
+    name: Helm Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get changed chart files
+        id: changed
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            cluster/**/Chart.yaml
+            cluster/**/values.yaml
+            cluster/**/templates/**
+          dir_names: true
+          dir_names_max_depth: 3
+
+      - name: Resolve chart directories
+        if: steps.changed.outputs.any_changed == 'true'
+        id: charts
+        env:
+          CHANGED_DIRS: ${{ steps.changed.outputs.all_changed_files }}
+        run: |
+          charts=()
+          for dir in $CHANGED_DIRS; do
+            if [ -f "$dir/Chart.yaml" ]; then
+              charts+=("$dir")
+            fi
+          done
+
+          # Library chart changed — also validate all consumer charts
+          if [[ " $CHANGED_DIRS " == *" cluster/lib/"* ]]; then
+            for consumer in cluster/db3000/*/Chart.yaml; do
+              charts+=("$(dirname "$consumer")")
+            done
+          fi
+
+          unique=$(printf '%s\n' "${charts[@]}" | sort -u | tr '\n' ' ')
+          echo "dirs=$unique" >> "$GITHUB_OUTPUT"
+          echo "Found charts: $unique"
+
+      - name: Set up Helm
+        if: steps.changed.outputs.any_changed == 'true'
+        uses: azure/setup-helm@v4
+
+      - name: Install kubeconform
+        if: steps.changed.outputs.any_changed == 'true'
+        run: |
+          KUBECONFORM_VERSION=v0.7.0
+          curl -sSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Validate charts
+        if: steps.changed.outputs.any_changed == 'true'
+        env:
+          CHART_DIRS: ${{ steps.charts.outputs.dirs }}
+        run: |
+          set -euo pipefail
+          for chart_dir in $CHART_DIRS; do
+            echo "=== Validating $chart_dir ==="
+
+            # Register Helm repos for remote dependencies
+            repos=$(grep 'repository:' "$chart_dir/Chart.yaml" | sed 's/.*repository: *"\{0,1\}\([^"]*\)"\{0,1\}/\1/' | grep -v '^file://' || true)
+            for repo in $repos; do
+              repo_name=$(echo "$repo" | md5sum | cut -c1-8)
+              helm repo add "repo-${repo_name}" "$repo" 2>/dev/null || true
+            done
+
+            helm dependency build "$chart_dir"
+            helm lint "$chart_dir"
+            helm template test "$chart_dir" | kubeconform -strict -ignore-missing-schemas -summary
+
+            echo "=== $chart_dir passed ==="
+          done
