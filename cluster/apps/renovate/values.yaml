@@ -1,0 +1,15 @@
+renovate:
+  cronjob:
+    schedule: "0 * * * *"
+    concurrencyPolicy: Forbid
+    jobRestartPolicy: Never
+  renovate:
+    config: |
+      {
+        "platform": "github",
+        "repositories": ["xmple/talos-cluster"],
+        "onboardingConfig": {
+          "extends": ["config:recommended"]
+        }
+      }
+  existingSecret: renovate-token
