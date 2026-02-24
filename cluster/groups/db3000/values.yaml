@@ -1,0 +1,38 @@
+repoURL: git@github.com:xmple/talos-cluster.git
+targetRevision: main
+project: cluster
+
+autoSync: true
+
+namespace:
+  name: db3000
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+
+apps:
+  - name: audiobookshelf
+    path: cluster/db3000/audiobookshelf
+  - name: bazarr
+    path: cluster/db3000/bazarr
+  - name: jellyfin
+    path: cluster/db3000/jellyfin
+  - name: jellyseerr
+    path: cluster/db3000/jellyseerr
+  - name: media-storage
+    path: cluster/db3000/media-storage
+  - name: nzbget
+    path: cluster/db3000/nzbget
+  - name: plex
+    path: cluster/db3000/plex
+  - name: prowlarr
+    path: cluster/db3000/prowlarr
+  - name: radarr
+    path: cluster/db3000/radarr
+  - name: sonarr
+    path: cluster/db3000/sonarr
+  - name: tautulli
+    path: cluster/db3000/tautulli
+  - name: transmission
+    path: cluster/db3000/transmission
