@@ -14,7 +14,7 @@ gitea:
         password: "changeme"
     master:
       persistence:
-        size: 1Gi
+        enabled: false
 
   persistence:
     enabled: true
