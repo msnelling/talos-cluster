@@ -13,15 +13,11 @@ argo-cd:
       periodSeconds: 30
       timeoutSeconds: 5
 
-  server:
-    insecure: true
-
   configs:
     params:
       server.insecure: true
 
     cm:
-      url: https://argocd.xmple.io
       dex.config: |
         connectors:
           - type: github
