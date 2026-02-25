@@ -1,0 +1,12 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: cnpg-cluster-daily-backup
+  namespace: {{ .Release.Namespace }}
+spec:
+  immediate: true
+  schedule: {{ .Values.scheduledBackup.schedule | quote }}
+  method: barmanObjectStore
+  backupOwnerReference: self
+  cluster:
+    name: cnpg-cluster

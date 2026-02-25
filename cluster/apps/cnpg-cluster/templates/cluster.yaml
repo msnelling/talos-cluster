@@ -1,0 +1,50 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: cnpg-cluster
+  namespace: {{ .Release.Namespace }}
+spec:
+  instances: {{ .Values.instances }}
+
+  storage:
+    size: {{ .Values.storage.size }}
+    storageClass: {{ .Values.storage.storageClass }}
+
+  {{- with .Values.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+  {{- with .Values.affinity }}
+  affinity:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+  enableSuperuserAccess: true
+  primaryUpdateMethod: switchover
+  primaryUpdateStrategy: unsupervised
+
+  bootstrap:
+    initdb:
+      database: {{ .Values.initdb.database }}
+      owner: {{ .Values.initdb.owner }}
+
+  backup:
+    target: prefer-standby
+    retentionPolicy: {{ .Values.backup.retentionPolicy }}
+    barmanObjectStore:
+      endpointURL: {{ .Values.backup.endpointURL }}
+      destinationPath: {{ .Values.backup.destinationPath }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ .Values.backup.secretName }}
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: {{ .Values.backup.secretName }}
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: {{ .Values.backup.wal.compression }}
+        maxParallel: {{ .Values.backup.wal.maxParallel }}
+      data:
+        compression: {{ .Values.backup.data.compression }}
+        jobs: {{ .Values.backup.data.jobs }}
