@@ -20,3 +20,6 @@ apps:
   - name: nfd
     namespace: nfd
     path: cluster/apps/nfd
+  - name: intel-gpu
+    namespace: intel-gpu
+    path: cluster/apps/intel-gpu
