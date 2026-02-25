@@ -59,7 +59,7 @@ task setup:kubeconfig     # Retrieve and merge kubeconfig
 Tasks are split into domain-grouped files under `taskfiles/` with namespaced includes:
 - `taskfiles/setup.yaml` -- cluster provisioning (download, generate, patch, apply, bootstrap, kubeconfig)
 - `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, argocd)
-- `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, reboot, reset)
+- `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, join-node, reboot, reset)
 - `taskfiles/utility.yaml` -- diagnostics (status, dashboard, disks, links)
 
 Root `Taskfile.yaml` holds global vars, shared precondition helpers (`_require-nodes`, `_require-helm`), and top-level orchestration tasks (`setup`, `reconfigure`).
