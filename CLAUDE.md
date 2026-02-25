@@ -211,6 +211,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **Multi-node control plane requires `control_plane_vip`** in `vars.yaml`. This enables Talos's built-in Virtual IP for the Kubernetes API endpoint. Single control plane nodes don't need it — the endpoint falls back to the node's IP.
 
+**Intel I219 NICs drop to 10Mbps when Intel AMT SOL/IDER is enabled.** The e1000e driver logs `Reset blocked by ME` and `PHY reset is blocked due to SOL/IDER session`. Older I217/I218 NICs (e.g., lenovo1's SHARKBAY board at `0000:00:19.0`) handle this gracefully, but I219 NICs (e.g., ThinkCentre M720q at `0000:00:1f.6`) fall back to 10Mbps. Fix by disabling Intel AMT / Serial over LAN in the BIOS (Devices > Network Setup or Security > Intel AMT).
+
 ## Secrets (Not in Git)
 
 | Secret | Namespace | Source |
