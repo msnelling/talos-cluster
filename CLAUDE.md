@@ -185,9 +185,15 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **After reinstalling Longhorn**, existing PVCs may need manual reattachment if the volume data still exists on disk.
 
+**Changing Longhorn `defaultReplicaCount` only affects new volumes.** Scale existing volumes with: `kubectl patch volumes.longhorn.io <name> -n longhorn-system --type merge -p '{"spec":{"numberOfReplicas":3}}'`
+
 **Longhorn v1.11.0 chart moved backup settings** from `defaultSettings.backupTarget` to `defaultBackupStore.backupTarget`. Always run `helm show values` to verify value paths when adding or upgrading charts.
 
 **Longhorn on ArgoCD requires `preUpgradeChecker.jobEnabled: false`** — the pre-upgrade job uses Helm hooks which ArgoCD skips, causing sync failures.
+
+**ArgoCD repo-server needs relaxed probe timeouts** when managing many charts. `helm dependency build` can take 26s+, exceeding the default 1s liveness probe timeout and causing CrashLoopBackOff (exit 137). The wrapper chart overrides `repoServer.livenessProbe.timeoutSeconds` and `periodSeconds`.
+
+**ArgoCD chart v9.x uses `global.domain` for SSO/OIDC.** The Dex issuer URL is derived from `global.domain`, not `configs.cm.url`. Without it, GitHub SSO fails silently with an empty OIDC issuer. The `server.insecure` flag only works under `configs.params`, not `server:`.
 
 **Longhorn's pre-delete hook (`longhorn-uninstall`) is destructive.** If a Longhorn Application is deleted with `resources-finalizer` and `pre-delete-finalizer`, ArgoCD will repeatedly run the uninstall job. Fix by removing finalizers from the Application (`kubectl patch application longhorn -n argocd --type=json -p='[{"op":"remove","path":"/metadata/finalizers"}]'`), then deleting the uninstall job.
 
@@ -198,6 +204,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 **Gitea chart templates `targetPort` from `gitea.config.server.HTTP_PORT`**, not from `service.http.targetPort`. This value must be explicitly set in the wrapper values or the Service renders with an empty targetPort that fails schema validation.
 
 **Always validate charts locally before pushing:** `helm dependency build <chart> && helm lint <chart> && helm template test <chart> | kubeconform -strict -ignore-missing-schemas -summary`
+
+**Only override upstream defaults when necessary.** Run `helm show values <repo>/<chart> --version <ver>` to check defaults before adding values. Redundant overrides add maintenance burden and can drift from upstream.
 
 **Traefik chart enforces a values schema.** Always run `helm show values traefik/traefik --version <ver>` to verify value paths before adding new configuration. `helm lint` catches schema violations locally.
 
