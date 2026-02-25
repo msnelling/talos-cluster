@@ -35,7 +35,7 @@ cilium:
   k8sServicePort: 7445
 
   operator:
-    replicas: 1
+    replicas: 2
 
   l2announcements:
     enabled: true
