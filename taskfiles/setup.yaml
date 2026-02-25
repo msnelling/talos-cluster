@@ -75,6 +75,8 @@ tasks:
         sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .role // "controlplane"' vars.yaml
       CONTROL_PLANE_VIP:
         sh: yq '.control_plane_vip // ""' vars.yaml
+      NODE_SCHEDULABLE:
+        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .schedulable // true' vars.yaml
     cmds:
       - echo "Patching config for {{.NODE_NAME}} ({{.NODE_IP}}, {{.NODE_ROLE}})..."
       - yq -n '
@@ -101,6 +103,9 @@ tasks:
         PATCHES="$PATCHES --patch @generated/tailscale-patch.yaml"
         if [ -f "generated/{{.NODE_NAME}}-vip-patch.yaml" ]; then
           PATCHES="$PATCHES --patch @generated/{{.NODE_NAME}}-vip-patch.yaml"
+        fi
+        if [ "{{.NODE_SCHEDULABLE}}" = "false" ]; then
+          PATCHES="$PATCHES --patch @patches/no-schedule.yaml"
         fi
         talosctl machineconfig patch "$SOURCE" $PATCHES --output generated/{{.NODE_NAME}}.yaml
 
