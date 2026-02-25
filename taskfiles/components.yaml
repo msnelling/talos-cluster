@@ -189,6 +189,33 @@ tasks:
             MINIO_SECRET_ACCESS_KEY={{.GITEA_MINIO_SECRET_KEY}}
         EOF
 
+  cnpg-secrets:
+    desc: Create CNPG S3 backup and pgAdmin secrets (namespace created by ArgoCD)
+    cmds:
+      - |
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: cnpg-s3-creds
+          namespace: cnpg-cluster
+        type: Opaque
+        stringData:
+          ACCESS_KEY_ID: "{{.CNPG_S3_ACCESS_KEY}}"
+          ACCESS_SECRET_KEY: "{{.CNPG_S3_SECRET_KEY}}"
+        EOF
+      - |
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: pgadmin-credentials
+          namespace: cnpg-cluster
+        type: Opaque
+        stringData:
+          password: "{{.PGADMIN_PASSWORD}}"
+        EOF
+
   renovate-secret:
     desc: Create Renovate GitHub App secret (namespace created by ArgoCD)
     preconditions:
