@@ -57,11 +57,11 @@ tasks:
           --force
           {{.CLUSTER_NAME}}
           https://{{.CONTROL_PLANE_ENDPOINT}}:{{.CONTROL_PLANE_PORT}}
-      - task: setup:_generate-shared-patches
-      - task: setup:_patch-node
+      - task: :setup:_generate-shared-patches
+      - task: :setup:_patch-node
         vars:
           NODE_NAME: "{{.JOIN_NODE}}"
-      - task: setup:_apply-node
+      - task: :setup:_apply-node
         vars:
           NODE_NAME: "{{.JOIN_NODE}}"
       - 'echo "{{.JOIN_NODE}} will now install Talos and join the cluster."'
