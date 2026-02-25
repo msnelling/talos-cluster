@@ -1,0 +1,7 @@
+apiVersion: v2
+name: nfd
+version: 0.1.0
+dependencies:
+  - name: node-feature-discovery
+    version: "0.18.3"
+    repository: oci://registry.k8s.io/nfd/charts

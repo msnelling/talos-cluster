@@ -36,6 +36,7 @@ Secrets in `taskfiles/components.yaml` use heredoc + `stringData` piped to `kube
 ```bash
 task day2:upgrade-talos   # Rolling Talos upgrade across all nodes
 task day2:upgrade-k8s     # Upgrade Kubernetes (cluster-wide)
+task day2:join-node -- <name>  # Join a new node to the existing cluster
 task day2:reboot          # Rolling reboot across all nodes
 task day2:reset           # Wipe all nodes (DESTRUCTIVE, prompts for confirmation)
 task reconfigure          # Re-patch and apply Talos config changes to all nodes
@@ -58,7 +59,7 @@ task setup:kubeconfig     # Retrieve and merge kubeconfig
 Tasks are split into domain-grouped files under `taskfiles/` with namespaced includes:
 - `taskfiles/setup.yaml` -- cluster provisioning (download, generate, patch, apply, bootstrap, kubeconfig)
 - `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, argocd)
-- `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, reboot, reset)
+- `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, join-node, reboot, reset)
 - `taskfiles/utility.yaml` -- diagnostics (status, dashboard, disks, links)
 
 Root `Taskfile.yaml` holds global vars, shared precondition helpers (`_require-nodes`, `_require-helm`), and top-level orchestration tasks (`setup`, `reconfigure`).
@@ -120,7 +121,7 @@ Client → DNS (*.xmple.io → 10.1.1.60) → Cilium LB-IPAM (L2 announcement)
 
 ### Configuration
 
-`vars.yaml` (git-ignored) holds cluster config: node list (name, IP, role, disk, interface), Talos/K8s versions, optional control plane VIP, and secrets. See `vars.yaml.example` for structure. Nodes default to `controlplane` role (mixed mode — runs both control plane and workloads). Set `role: worker` for dedicated worker nodes. Set `control_plane_vip` when using multiple control plane nodes. Helm chart versions are pinned in each app's `Chart.yaml`, not in `vars.yaml`.
+`vars.yaml` (git-ignored) holds cluster config: node list (name, IP, role, disk, interface), Talos/K8s versions, optional control plane VIP, and secrets. See `vars.yaml.example` for structure. Nodes default to `controlplane` role (mixed mode — runs both control plane and workloads). Set `role: worker` for dedicated worker nodes. Set `schedulable: false` on a control plane node to apply a `NoSchedule` taint, preventing workload pods from being scheduled on it. Defaults to `true`. Set `control_plane_vip` when using multiple control plane nodes. Helm chart versions are pinned in each app's `Chart.yaml`, not in `vars.yaml`.
 
 `factory.yaml` defines the custom Talos image with extensions (Tailscale, Intel microcode, iSCSI).
 
@@ -165,6 +166,8 @@ Apps are organized into groups via charts under `cluster/groups/` (networking, p
 Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdown). Read the relevant design doc before modifying a component.
 
 ## Critical Gotchas
+
+**Never commit directly to `main`.** Always create a feature branch first (`git checkout -b feat/<name>` or `fix/<name>`), do the work there, then open a PR. This includes design docs, plans, and any other changes.
 
 **Gateway listener ports must be container ports (8000/8443), not service ports (80/443).** Traefik maps entrypoints by container port internally.
 

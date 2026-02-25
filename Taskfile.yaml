@@ -141,6 +141,10 @@ tasks:
       - task: components:traefik
       - task: components:cert-manager
       - task: components:argocd
+      - echo "Re-running bootstrap charts to apply CRs now that CRDs exist..."
+      - task: components:cilium
+      - task: components:cert-manager
+      - task: components:argocd
       - |
         echo "Waiting for ArgoCD to sync and create namespaces..."
         until kubectl get namespace longhorn-system >/dev/null 2>&1; do sleep 5; done
@@ -151,11 +155,29 @@ tasks:
       - 'echo "Cluster is ready. Verify with: kubectl --context admin@{{.CLUSTER_NAME}} get nodes"'
 
   reconfigure:
-    desc: Re-patch and apply config changes (edit patches first, then run this)
+    desc: "Re-patch and apply config changes (usage: task reconfigure [-- <node-name>])"
     deps: [_require-nodes]
     cmds:
       - task: setup:patch
-      - for: { var: NODE_NAMES, as: NODE }
-        task: setup:_reconfigure-node
-        vars:
-          NODE_NAME: "{{ .NODE }}"
+      - |
+        if [ -n "{{.CLI_ARGS}}" ]; then
+          NODES="{{.CLI_ARGS}}"
+        else
+          NODES="{{.NODE_NAMES}}"
+        fi
+        FAILED=""
+        for NODE in $NODES; do
+          NODE_IP=$(yq ".nodes[] | select(.name == \"$NODE\") | .ip" vars.yaml)
+          echo "Reconfiguring $NODE ($NODE_IP)..."
+          if talosctl apply-config --context {{.CLUSTER_NAME}} --nodes "$NODE_IP" --file "generated/$NODE.yaml"; then
+            echo "$NODE: OK"
+          else
+            echo "WARNING: Failed to reconfigure $NODE, continuing..."
+            FAILED="$FAILED $NODE"
+          fi
+        done
+        if [ -n "$FAILED" ]; then
+          echo ""
+          echo "Failed to reconfigure:$FAILED"
+          exit 1
+        fi

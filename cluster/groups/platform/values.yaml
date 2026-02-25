@@ -17,3 +17,6 @@ apps:
   - name: renovate
     namespace: renovate
     path: cluster/apps/renovate
+  - name: nfd
+    namespace: nfd
+    path: cluster/apps/nfd

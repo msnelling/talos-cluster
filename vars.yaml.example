@@ -9,7 +9,12 @@ nodes:
     ip: ""
     disk: /dev/sda
     interface: eno1
-  # - name: node2
+    schedulable: false           # Optional, defaults to true. Set false for controlplane-only.
+  - name: node2
+    ip: ""
+    disk: /dev/sda
+    interface: eno1
+  # - name: node3
   #   ip: ""
   #   role: worker             # Optional, defaults to "controlplane"
   #   disk: /dev/sda

@@ -1,0 +1,3 @@
+node-feature-discovery:
+  master:
+    replicaCount: 1

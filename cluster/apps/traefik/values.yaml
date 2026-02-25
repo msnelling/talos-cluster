@@ -17,6 +17,9 @@ traefik:
       exposedPort: 22
       protocol: TCP
 
+  deployment:
+    replicas: 2
+
   service:
     spec:
       loadBalancerClass: io.cilium/l2-announcer

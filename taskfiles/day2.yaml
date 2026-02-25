@@ -3,29 +3,37 @@ version: "3"
 tasks:
 
   upgrade-talos:
-    desc: Upgrade Talos OS on all nodes (rolling)
+    desc: "Upgrade Talos OS on all nodes or a specific node (usage: task day2:upgrade-talos [-- <node-name>])"
     deps: [":_require-nodes"]
     vars:
       SCHEMATIC_ID:
         sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
     cmds:
-      - for: { var: NODE_NAMES, as: NODE }
-        task: _upgrade-talos-node
-        vars:
-          NODE_NAME: "{{ .NODE }}"
-          SCHEMATIC_ID: "{{.SCHEMATIC_ID}}"
-
-  _upgrade-talos-node:
-    internal: true
-    vars:
-      NODE_IP:
-        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .ip' vars.yaml
-    cmds:
-      - echo "Upgrading Talos on {{.NODE_NAME}} ({{.NODE_IP}})..."
-      - talosctl upgrade
-          --context {{.CLUSTER_NAME}}
-          --nodes {{.NODE_IP}}
-          --image "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"
+      - |
+        if [ -n "{{.CLI_ARGS}}" ]; then
+          NODES="{{.CLI_ARGS}}"
+        else
+          NODES="{{.NODE_NAMES}}"
+        fi
+        FAILED=""
+        for NODE in $NODES; do
+          NODE_IP=$(yq ".nodes[] | select(.name == \"$NODE\") | .ip" vars.yaml)
+          echo "Upgrading Talos on $NODE ($NODE_IP)..."
+          if talosctl upgrade \
+              --context {{.CLUSTER_NAME}} \
+              --nodes "$NODE_IP" \
+              --image "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"; then
+            echo "$NODE: OK"
+          else
+            echo "WARNING: Failed to upgrade $NODE, continuing..."
+            FAILED="$FAILED $NODE"
+          fi
+        done
+        if [ -n "$FAILED" ]; then
+          echo ""
+          echo "Failed to upgrade:$FAILED"
+          exit 1
+        fi
 
   upgrade-k8s:
     desc: Upgrade Kubernetes version (cluster-wide)
@@ -35,45 +43,89 @@ tasks:
           --context {{.CLUSTER_NAME}}
           --to {{.KUBERNETES_VERSION}}
 
+  join-node:
+    desc: "Join a new node to the existing cluster (usage: task day2:join-node -- <node-name>)"
+    deps: [":_require-nodes"]
+    preconditions:
+      - sh: '[ -n "{{.CLI_ARGS}}" ]'
+        msg: "Usage: task day2:join-node -- <node-name>"
+      - sh: yq -e '.nodes[] | select(.name == "{{.CLI_ARGS}}")' vars.yaml
+        msg: "Node '{{.CLI_ARGS}}' not found in vars.yaml"
+      - sh: '[ -f generated/secrets.yaml ]'
+        msg: "generated/secrets.yaml not found. Run 'task setup' first on the initial node."
+    vars:
+      JOIN_NODE: "{{.CLI_ARGS}}"
+      JOIN_NODE_IP:
+        sh: yq '.nodes[] | select(.name == "{{.CLI_ARGS}}") | .ip' vars.yaml
+    cmds:
+      - echo "Generating config for {{.JOIN_NODE}} using existing cluster secrets..."
+      - talosctl gen config
+          --with-secrets generated/secrets.yaml
+          --output generated/
+          --force
+          {{.CLUSTER_NAME}}
+          https://{{.CONTROL_PLANE_ENDPOINT}}:{{.CONTROL_PLANE_PORT}}
+      - task: :setup:_generate-shared-patches
+      - task: :setup:_patch-node
+        vars:
+          NODE_NAME: "{{.JOIN_NODE}}"
+      - task: :setup:_apply-node
+        vars:
+          NODE_NAME: "{{.JOIN_NODE}}"
+      - 'echo "{{.JOIN_NODE}} will now install Talos and join the cluster."'
+      - 'echo "Monitor progress with: talosctl --context {{.CLUSTER_NAME}} --nodes {{.JOIN_NODE_IP}} dmesg -f"'
+
   reboot:
-    desc: Reboot all nodes (rolling)
+    desc: "Reboot all nodes or a specific node (usage: task day2:reboot [-- <node-name>])"
     deps: [":_require-nodes"]
     cmds:
-      - for: { var: NODE_NAMES, as: NODE }
-        task: _reboot-node
-        vars:
-          NODE_NAME: "{{ .NODE }}"
-
-  _reboot-node:
-    internal: true
-    vars:
-      NODE_IP:
-        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .ip' vars.yaml
-    cmds:
-      - echo "Rebooting {{.NODE_NAME}} ({{.NODE_IP}})..."
-      - talosctl reboot
-          --context {{.CLUSTER_NAME}}
-          --nodes {{.NODE_IP}}
+      - |
+        if [ -n "{{.CLI_ARGS}}" ]; then
+          NODES="{{.CLI_ARGS}}"
+        else
+          NODES="{{.NODE_NAMES}}"
+        fi
+        FAILED=""
+        for NODE in $NODES; do
+          NODE_IP=$(yq ".nodes[] | select(.name == \"$NODE\") | .ip" vars.yaml)
+          echo "Rebooting $NODE ($NODE_IP)..."
+          if talosctl reboot --context {{.CLUSTER_NAME}} --nodes "$NODE_IP"; then
+            echo "$NODE: OK"
+          else
+            echo "WARNING: Failed to reboot $NODE, continuing..."
+            FAILED="$FAILED $NODE"
+          fi
+        done
+        if [ -n "$FAILED" ]; then
+          echo ""
+          echo "Failed to reboot:$FAILED"
+          exit 1
+        fi
 
   reset:
-    desc: Wipe all nodes and start over (DESTRUCTIVE)
-    prompt: This will WIPE ALL NODES and destroy all data. Are you sure?
+    desc: "Wipe all nodes or a specific node (DESTRUCTIVE, usage: task day2:reset [-- <node-name>])"
+    prompt: This will WIPE node(s) and destroy all data. Are you sure?
     deps: [":_require-nodes"]
     cmds:
-      - for: { var: NODE_NAMES, as: NODE }
-        task: _reset-node
-        vars:
-          NODE_NAME: "{{ .NODE }}"
-
-  _reset-node:
-    internal: true
-    vars:
-      NODE_IP:
-        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .ip' vars.yaml
-    cmds:
-      - echo "Resetting {{.NODE_NAME}} ({{.NODE_IP}})..."
-      - talosctl reset
-          --context {{.CLUSTER_NAME}}
-          --nodes {{.NODE_IP}}
-          --graceful=false
-          --reboot
+      - |
+        if [ -n "{{.CLI_ARGS}}" ]; then
+          NODES="{{.CLI_ARGS}}"
+        else
+          NODES="{{.NODE_NAMES}}"
+        fi
+        FAILED=""
+        for NODE in $NODES; do
+          NODE_IP=$(yq ".nodes[] | select(.name == \"$NODE\") | .ip" vars.yaml)
+          echo "Resetting $NODE ($NODE_IP)..."
+          if talosctl reset --context {{.CLUSTER_NAME}} --nodes "$NODE_IP" --graceful=false --reboot; then
+            echo "$NODE: OK"
+          else
+            echo "WARNING: Failed to reset $NODE, continuing..."
+            FAILED="$FAILED $NODE"
+          fi
+        done
+        if [ -n "$FAILED" ]; then
+          echo ""
+          echo "Failed to reset:$FAILED"
+          exit 1
+        fi

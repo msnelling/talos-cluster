@@ -41,6 +41,15 @@ tasks:
 
   patch:
     internal: true
+    cmds:
+      - task: _generate-shared-patches
+      - for: { var: NODE_NAMES, as: NODE }
+        task: _patch-node
+        vars:
+          NODE_NAME: "{{ .NODE }}"
+
+  _generate-shared-patches:
+    internal: true
     vars:
       SCHEMATIC_ID:
         sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
@@ -57,10 +66,6 @@ tasks:
         if [ -n "{{.TAILSCALE_ROUTES}}" ]; then
           yq -i '.environment += ["TS_ROUTES={{.TAILSCALE_ROUTES}}"]' generated/tailscale-patch.yaml
         fi
-      - for: { var: NODE_NAMES, as: NODE }
-        task: _patch-node
-        vars:
-          NODE_NAME: "{{ .NODE }}"
 
   _patch-node:
     internal: true
@@ -75,6 +80,8 @@ tasks:
         sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .role // "controlplane"' vars.yaml
       CONTROL_PLANE_VIP:
         sh: yq '.control_plane_vip // ""' vars.yaml
+      NODE_SCHEDULABLE:
+        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .schedulable // true' vars.yaml
     cmds:
       - echo "Patching config for {{.NODE_NAME}} ({{.NODE_IP}}, {{.NODE_ROLE}})..."
       - yq -n '
@@ -84,8 +91,10 @@ tasks:
         ' > generated/{{.NODE_NAME}}-common-patch.yaml
       - |
         if [ "{{.NODE_ROLE}}" != "worker" ] && [ -n "{{.CONTROL_PLANE_VIP}}" ]; then
-          yq -n '.machine.network.interfaces[0].vip.ip = "{{.CONTROL_PLANE_VIP}}"' \
-            > generated/{{.NODE_NAME}}-vip-patch.yaml
+          yq -n '
+            .machine.network.interfaces[0].interface = "{{.NODE_INTERFACE}}" |
+            .machine.network.interfaces[0].vip.ip = "{{.CONTROL_PLANE_VIP}}"
+          ' > generated/{{.NODE_NAME}}-vip-patch.yaml
         fi
       - |
         SOURCE="generated/controlplane.yaml"
@@ -101,6 +110,9 @@ tasks:
         PATCHES="$PATCHES --patch @generated/tailscale-patch.yaml"
         if [ -f "generated/{{.NODE_NAME}}-vip-patch.yaml" ]; then
           PATCHES="$PATCHES --patch @generated/{{.NODE_NAME}}-vip-patch.yaml"
+        fi
+        if [ "{{.NODE_SCHEDULABLE}}" = "false" ]; then
+          PATCHES="$PATCHES --patch @patches/no-schedule.yaml"
         fi
         talosctl machineconfig patch "$SOURCE" $PATCHES --output generated/{{.NODE_NAME}}.yaml
 

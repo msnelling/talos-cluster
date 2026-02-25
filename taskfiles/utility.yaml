@@ -14,11 +14,21 @@ tasks:
       - cilium status --context admin@{{.CLUSTER_NAME}}
 
   dashboard:
-    desc: Open Talos dashboard
+    desc: "Open Talos dashboard (usage: task utility:dashboard [-- <node-name> ...])"
     deps: [":_require-nodes"]
     interactive: true
     cmds:
-      - talosctl dashboard --context {{.CLUSTER_NAME}}
+      - |
+        if [ -n "{{.CLI_ARGS}}" ]; then
+          IPS=""
+          for NODE in {{.CLI_ARGS}}; do
+            IP=$(yq ".nodes[] | select(.name == \"$NODE\") | .ip" vars.yaml)
+            if [ -n "$IPS" ]; then IPS="$IPS,$IP"; else IPS="$IP"; fi
+          done
+        else
+          IPS="{{.ALL_CP_IPS | replace " " ","}}"
+        fi
+        exec talosctl dashboard --context {{.CLUSTER_NAME}} --nodes "$IPS"
 
   disks:
     desc: List disks on all nodes (useful before first install)

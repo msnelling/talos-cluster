@@ -1,3 +1,4 @@
+{{- if .Capabilities.APIVersions.Has "cert-manager.io/v1/ClusterIssuer" }}
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -13,3 +14,4 @@ spec:
             apiTokenSecretRef:
               name: cloudflare-api-token
               key: api-token
+{{- end }}
