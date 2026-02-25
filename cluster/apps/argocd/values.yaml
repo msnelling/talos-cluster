@@ -1,4 +1,15 @@
 argo-cd:
+  repoServer:
+    livenessProbe:
+      failureThreshold: 5
+      initialDelaySeconds: 30
+      periodSeconds: 30
+      timeoutSeconds: 5
+    readinessProbe:
+      failureThreshold: 5
+      periodSeconds: 30
+      timeoutSeconds: 5
+
   server:
     insecure: true
 
