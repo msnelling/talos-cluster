@@ -16,9 +16,6 @@ gitea:
       persistence:
         enabled: false
 
-  strategy:
-    type: Recreate
-
   persistence:
     enabled: true
     create: false
