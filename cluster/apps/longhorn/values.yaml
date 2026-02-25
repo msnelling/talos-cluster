@@ -1,8 +1,16 @@
 longhorn:
   preUpgradeChecker:
+    # ArgoCD skips Helm hooks, so the pre-upgrade job causes sync failures
     jobEnabled: false
   defaultSettings:
     defaultDataPath: /var/lib/longhorn
+    # 2 replicas is sufficient for a 3-node cluster and reduces etcd write pressure
+    # (only affects new volumes — scale existing with: kubectl patch volumes.longhorn.io <name> -n longhorn-system --type merge -p '{"spec":{"numberOfReplicas":2}}')
+    defaultReplicaCount: 2
+    # Cap snapshots per volume to limit CRD object growth in etcd
+    snapshotMaxCount: 20
+    # Limit concurrent replica rebuilds to reduce burst etcd writes during recovery
+    concurrentReplicaRebuildPerNodeLimit: 2
   defaultBackupStore:
     backupTarget: "s3://longhorn-backup@us-east-1/"
     backupTargetCredentialSecret: longhorn-s3-secret
