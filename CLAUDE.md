@@ -36,9 +36,9 @@ Secrets in `taskfiles/components.yaml` use heredoc + `stringData` piped to `kube
 ```bash
 task day2:upgrade-talos   # Rolling Talos upgrade across all nodes
 task day2:upgrade-k8s     # Upgrade Kubernetes (cluster-wide)
+task day2:join-node -- <name>  # Join a new node to the existing cluster
 task day2:reboot          # Rolling reboot across all nodes
 task day2:reset           # Wipe all nodes (DESTRUCTIVE, prompts for confirmation)
-task day2:join-node -- <name>  # Join a new node to the existing cluster
 task reconfigure          # Re-patch and apply Talos config changes to all nodes
 ```
 

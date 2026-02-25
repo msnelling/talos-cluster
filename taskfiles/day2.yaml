@@ -47,8 +47,8 @@ tasks:
         msg: "generated/secrets.yaml not found. Run 'task setup' first on the initial node."
     vars:
       JOIN_NODE: "{{.CLI_ARGS}}"
-      SCHEMATIC_ID:
-        sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
+      JOIN_NODE_IP:
+        sh: yq '.nodes[] | select(.name == "{{.CLI_ARGS}}") | .ip' vars.yaml
     cmds:
       - echo "Generating config for {{.JOIN_NODE}} using existing cluster secrets..."
       - talosctl gen config
@@ -57,37 +57,15 @@ tasks:
           --force
           {{.CLUSTER_NAME}}
           https://{{.CONTROL_PLANE_ENDPOINT}}:{{.CONTROL_PLANE_PORT}}
-      - yq -n '.machine.install.image = "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"'
-          > generated/install-image-patch.yaml
-      - |
-        yq -n '
-          .apiVersion = "v1alpha1" |
-          .kind = "ExtensionServiceConfig" |
-          .name = "tailscale" |
-          .environment = ["TS_AUTHKEY={{.TAILSCALE_AUTH_KEY}}"]
-        ' > generated/tailscale-patch.yaml
-        if [ -n "{{.TAILSCALE_ROUTES}}" ]; then
-          yq -i '.environment += ["TS_ROUTES={{.TAILSCALE_ROUTES}}"]' generated/tailscale-patch.yaml
-        fi
+      - task: setup:_generate-shared-patches
       - task: setup:_patch-node
         vars:
           NODE_NAME: "{{.JOIN_NODE}}"
-      - task: _join-apply
+      - task: setup:_apply-node
         vars:
           NODE_NAME: "{{.JOIN_NODE}}"
-
-  _join-apply:
-    internal: true
-    vars:
-      NODE_IP:
-        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .ip' vars.yaml
-    cmds:
-      - echo "Applying config to {{.NODE_NAME}} ({{.NODE_IP}})..."
-      - talosctl apply-config --insecure
-          --nodes {{.NODE_IP}}
-          --file generated/{{.NODE_NAME}}.yaml
-      - echo "Config applied. {{.NODE_NAME}} will now install Talos and join the cluster."
-      - 'echo "Monitor progress with: talosctl --context {{.CLUSTER_NAME}} --nodes {{.NODE_IP}} dmesg -f"'
+      - 'echo "{{.JOIN_NODE}} will now install Talos and join the cluster."'
+      - 'echo "Monitor progress with: talosctl --context {{.CLUSTER_NAME}} --nodes {{.JOIN_NODE_IP}} dmesg -f"'
 
   reboot:
     desc: Reboot all nodes (rolling)

@@ -41,6 +41,15 @@ tasks:
 
   patch:
     internal: true
+    cmds:
+      - task: _generate-shared-patches
+      - for: { var: NODE_NAMES, as: NODE }
+        task: _patch-node
+        vars:
+          NODE_NAME: "{{ .NODE }}"
+
+  _generate-shared-patches:
+    internal: true
     vars:
       SCHEMATIC_ID:
         sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
@@ -57,10 +66,6 @@ tasks:
         if [ -n "{{.TAILSCALE_ROUTES}}" ]; then
           yq -i '.environment += ["TS_ROUTES={{.TAILSCALE_ROUTES}}"]' generated/tailscale-patch.yaml
         fi
-      - for: { var: NODE_NAMES, as: NODE }
-        task: _patch-node
-        vars:
-          NODE_NAME: "{{ .NODE }}"
 
   _patch-node:
     internal: true
