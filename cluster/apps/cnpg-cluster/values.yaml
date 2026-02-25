@@ -1,51 +1,34 @@
-cluster:
-  mode: standalone
+instances: 3
 
-  cluster:
-    instances: 3
+storage:
+  size: 10Gi
+  storageClass: longhorn-single-replica
 
-    storage:
-      size: 10Gi
-      storageClass: longhorn-single-replica
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 100m
+  limits:
+    memory: 1Gi
 
-    resources:
-      requests:
-        memory: 256Mi
-        cpu: 100m
-      limits:
-        memory: 1Gi
+affinity:
+  topologyKey: kubernetes.io/hostname
 
-    affinity:
-      topologyKey: kubernetes.io/hostname
+initdb:
+  database: gitea
+  owner: gitea
 
-    enableSuperuserAccess: true
+backup:
+  endpointURL: "https://truenas.local:9000"
+  destinationPath: "s3://cnpg-backup/"
+  secretName: cnpg-s3-creds
+  retentionPolicy: "7d"
+  wal:
+    compression: gzip
+    maxParallel: 1
+  data:
+    compression: gzip
+    jobs: 2
 
-    initdb:
-      database: gitea
-      owner: gitea
-
-  backups:
-    enabled: true
-    endpointURL: "https://truenas.local:9000"
-    provider: s3
-    s3:
-      region: "us-east-1"
-      bucket: "cnpg-backup"
-      path: "/"
-    secret:
-      create: false
-      name: cnpg-s3-creds
-    wal:
-      compression: gzip
-      encryption: ""
-      maxParallel: 1
-    data:
-      compression: gzip
-      encryption: ""
-      jobs: 2
-    scheduledBackups:
-      - name: daily-backup
-        schedule: "0 0 0 * * *"
-        backupOwnerReference: self
-        method: barmanObjectStore
-    retentionPolicy: "7d"
+scheduledBackup:
+  schedule: "0 0 0 * * *"
