@@ -1,19 +1,8 @@
 longhorn:
-  longhornUI:
-    replicas: 1
   preUpgradeChecker:
     jobEnabled: false
-  csi:
-    attacherReplicaCount: 1
-    provisionerReplicaCount: 1
-    resizerReplicaCount: 1
-    snapshotterReplicaCount: 1
   defaultSettings:
-    defaultReplicaCount: 3
     defaultDataPath: /var/lib/longhorn
   defaultBackupStore:
     backupTarget: "s3://longhorn-backup@us-east-1/"
     backupTargetCredentialSecret: longhorn-s3-secret
-  persistence:
-    defaultClass: true
-    defaultClassReplicaCount: 3

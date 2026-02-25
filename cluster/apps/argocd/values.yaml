@@ -1,13 +1,23 @@
 argo-cd:
-  server:
-    insecure: true
+  global:
+    domain: argocd.xmple.io
+
+  repoServer:
+    livenessProbe:
+      failureThreshold: 5
+      initialDelaySeconds: 30
+      periodSeconds: 30
+      timeoutSeconds: 5
+    readinessProbe:
+      failureThreshold: 5
+      periodSeconds: 30
+      timeoutSeconds: 5
 
   configs:
     params:
       server.insecure: true
 
     cm:
-      url: https://argocd.xmple.io
       dex.config: |
         connectors:
           - type: github
