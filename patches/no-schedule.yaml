@@ -1,0 +1,6 @@
+machine:
+  kubelet:
+    extraConfig:
+      registerWithTaints:
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
