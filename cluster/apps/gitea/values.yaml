@@ -12,7 +12,7 @@ gitea:
     global:
       valkey:
         password: "changeme"
-    master:
+    primary:
       persistence:
         enabled: false
 
