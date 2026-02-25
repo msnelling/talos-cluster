@@ -23,3 +23,6 @@ apps:
   - name: intel-gpu
     namespace: intel-gpu
     path: cluster/apps/intel-gpu
+  - name: cnpg-operator
+    namespace: cnpg-system
+    path: cluster/apps/cnpg-operator

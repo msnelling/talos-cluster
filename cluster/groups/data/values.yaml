@@ -1,0 +1,13 @@
+repoURL: git@github.com:xmple/talos-cluster.git
+targetRevision: main
+project: cluster
+
+autoSync: true
+
+apps:
+  - name: cnpg-cluster
+    namespace: cnpg-cluster
+    path: cluster/apps/cnpg-cluster
+  - name: pgadmin
+    namespace: cnpg-cluster
+    path: cluster/apps/pgadmin

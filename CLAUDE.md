@@ -227,6 +227,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 | `gluetun-auth-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `gitea-admin-secret` | gitea | `task components:gitea-secrets` (from vars.yaml) |
 | `gitea-config-secrets` | gitea | `task components:gitea-secrets` (from vars.yaml) |
+| `cnpg-s3-creds` | cnpg-cluster | `task components:cnpg-secrets` (from vars.yaml) |
+| `pgadmin-credentials` | cnpg-cluster | `task components:cnpg-secrets` (from vars.yaml) |
 | `renovate-token` | renovate | `task components:renovate-secret` (from vars.yaml + `renovate-app-key.pem` file) |
 
 Generate the deploy key with `ssh-keygen -t ed25519 -f argocd-repo-key -N ""` and add the public key as a read-only deploy key in GitHub repo settings.

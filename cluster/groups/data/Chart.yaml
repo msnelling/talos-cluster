@@ -1,0 +1,4 @@
+apiVersion: v2
+name: app-data
+version: 0.1.0
+description: Data services group (cnpg-cluster, pgadmin)
