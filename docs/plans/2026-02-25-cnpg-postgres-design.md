@@ -17,6 +17,7 @@ CloudNativePG separates the **operator** (CRDs + controller) from **cluster inst
 |---|---|---|---|---|
 | CNPG Operator | `cluster/apps/cnpg-operator/` | `cnpg/cloudnative-pg` v0.27.1 | `cnpg-system` | platform |
 | PostgreSQL Cluster | `cluster/apps/cnpg-cluster/` | `cnpg/cluster` | `cnpg-cluster` | data (new) |
+| pgAdmin | `cluster/apps/pgadmin/` | `runix/pgadmin4` | `cnpg-cluster` | data (new) |
 
 ArgoCD handles CRD-before-CR ordering natively, so the operator installs before the cluster CR is applied.
 
@@ -86,12 +87,25 @@ CNPG runs as non-root by default. No `privileged` PodSecurity label needed — c
 
 CNPG auto-generates a `<cluster-name>-app` secret with connection credentials (host, port, dbname, user, password, URI).
 
+### pgAdmin
+
+Web-based PostgreSQL management UI for the shared cluster.
+
+- **Wrapper chart**: `cluster/apps/pgadmin/` wrapping `runix/pgadmin4`
+- **Namespace**: `cnpg-cluster` (co-located with the database)
+- **Access**: `pgadmin.xmple.io` via HTTPRoute on the Traefik Gateway (`sectionName: websecure`)
+- **Single replica**: Admin tool, no HA needed
+- **Admin credentials**: Email and password from `vars.yaml`, injected via a secret created by `task components:cnpg-secrets`
+- **Server pre-configuration**: The chart supports pre-loading server definitions via ConfigMap, so the CNPG cluster connection (`cnpg-cluster-rw`) is auto-registered. Users enter the DB password on first connect.
+- **Persistence**: Small PVC on default Longhorn StorageClass for session/config data
+- **Resources**: 128Mi request / 512Mi limit memory
+
 ## New ArgoCD Group: `data`
 
 A new app group at `cluster/groups/data/` for data services:
 
 - Registered in the ArgoCD chart alongside networking, platform, services, db3000
-- Starts with `cnpg-cluster` as its only member
+- Contains `cnpg-cluster` and `pgadmin`
 - Room to add future data services (Redis, etc.)
 
 ## Secrets
@@ -101,11 +115,13 @@ New `task components:cnpg-secrets` in `taskfiles/components.yaml`:
 | Secret | Namespace | Contents |
 |---|---|---|
 | `cnpg-s3-creds` | `cnpg-cluster` | S3 endpoint, bucket, access key, secret key for Barman backups |
+| `pgadmin-credentials` | `cnpg-cluster` | pgAdmin admin email and password |
 
 Additional vars in `vars.yaml`:
 
 - `cnpg_s3_endpoint`, `cnpg_s3_bucket`, `cnpg_s3_access_key`, `cnpg_s3_secret_key`
 - Or reuse existing Longhorn S3 vars if same bucket/credentials
+- `pgadmin_email`, `pgadmin_password`
 
 ## Gitea Migration Path
 
@@ -122,3 +138,4 @@ Additional vars in `vars.yaml`:
 - [CloudNativePG Documentation](https://cloudnative-pg.io/documentation/)
 - [CloudNativePG Helm Charts](https://github.com/cloudnative-pg/charts)
 - [CNPG Cluster Chart](https://github.com/cloudnative-pg/charts/tree/main/charts/cluster)
+- [pgAdmin4 Helm Chart](https://github.com/rowanruseler/helm-charts/tree/main/charts/pgadmin4)
