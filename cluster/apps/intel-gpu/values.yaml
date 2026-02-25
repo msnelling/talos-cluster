@@ -1,0 +1,8 @@
+intel-device-plugins-operator:
+  manager:
+    devices:
+      gpu: true
+
+intel-device-plugins-gpu:
+  sharedDevNum: 10
+  nodeFeatureRule: true

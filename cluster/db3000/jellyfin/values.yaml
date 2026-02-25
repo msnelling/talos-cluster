@@ -11,23 +11,15 @@ media-app:
       existingVolume: db3000-jellyfin-config
     media:
       enabled: true
-  securityContext:
-    privileged: true
   nodeSelector:
     intel.feature.node.kubernetes.io/gpu: "true"
   extraVolumes:
     - name: cache
       persistentVolumeClaim:
         claimName: jellyfin-cache
-    - name: dri
-      hostPath:
-        path: /dev/dri
-        type: Directory
   extraVolumeMounts:
     - name: cache
       mountPath: /cache
-    - name: dri
-      mountPath: /dev/dri
   httproute:
     path: /jellyfin
   resources:
@@ -35,3 +27,4 @@ media-app:
       memory: 4Gi
     limits:
       memory: 4Gi
+      gpu.intel.com/i915: "1"
