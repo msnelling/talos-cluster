@@ -141,6 +141,10 @@ tasks:
       - task: components:traefik
       - task: components:cert-manager
       - task: components:argocd
+      - echo "Re-running bootstrap charts to apply CRs now that CRDs exist..."
+      - task: components:cilium
+      - task: components:cert-manager
+      - task: components:argocd
       - |
         echo "Waiting for ArgoCD to sync and create namespaces..."
         until kubectl get namespace longhorn-system >/dev/null 2>&1; do sleep 5; done
