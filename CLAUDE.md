@@ -28,6 +28,10 @@ task components:renovate-secret  # Create Renovate GitHub App secret
 
 Each Helm component task runs: `helm repo add` → `helm dependency build` → `helm upgrade --install` with `--force-conflicts` (required for Helm 4 SSA compatibility with ArgoCD).
 
+### Secret Creation Convention
+
+Secrets in `taskfiles/components.yaml` use heredoc + `stringData` piped to `kubectl apply -f -` (not `--from-literal` CLI args) so values never appear in the process table. Helm secret values use `--values /dev/stdin` with a heredoc instead of `--set`. Follow this pattern for any new secrets.
+
 ### Day-2 Operations
 ```bash
 task day2:upgrade-talos   # Rolling Talos upgrade across all nodes
@@ -123,6 +127,8 @@ Client → DNS (*.xmple.io → 10.1.1.60) → Cilium LB-IPAM (L2 announcement)
 ## Working with ArgoCD
 
 **Always push changes to git before expecting ArgoCD to sync them.** ArgoCD reads from the remote repo, not local files. Modifying resources locally while ArgoCD syncs old code from git causes conflicts and prune cascades.
+
+**To diagnose OutOfSync resources:** `kubectl get application -n argocd -o json` and parse for resources where `status != "Synced"`. Then compare the live object (`kubectl get <kind> <name> -n <ns> -o yaml`) against the rendered template (`helm template`) to identify API server defaults causing drift.
 
 **To make breaking ArgoCD changes safely:**
 1. `kubectl scale statefulset argocd-application-controller -n argocd --replicas=0`

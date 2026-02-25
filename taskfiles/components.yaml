@@ -32,10 +32,17 @@ tasks:
     deps: [":_require-helm"]
     cmds:
       - kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
-      - kubectl create secret generic cloudflare-api-token
-          --namespace cert-manager
-          --from-literal=api-token={{.CLOUDFLARE_API_TOKEN}}
-          --dry-run=client -o yaml | kubectl apply -f -
+      - |
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: cloudflare-api-token
+          namespace: cert-manager
+        type: Opaque
+        stringData:
+          api-token: "{{.CLOUDFLARE_API_TOKEN}}"
+        EOF
       - helm repo add jetstack https://charts.jetstack.io --force-update
       - helm dependency build cluster/apps/cert-manager
       - helm upgrade --install cert-manager cluster/apps/cert-manager
@@ -46,12 +53,19 @@ tasks:
   longhorn-secret:
     desc: Create Longhorn S3 backup secret (namespace created by ArgoCD)
     cmds:
-      - kubectl create secret generic longhorn-s3-secret
-          --namespace longhorn-system
-          --from-literal=AWS_ACCESS_KEY_ID={{.LONGHORN_S3_ACCESS_KEY}}
-          --from-literal=AWS_SECRET_ACCESS_KEY={{.LONGHORN_S3_SECRET_KEY}}
-          --from-literal=AWS_ENDPOINTS={{.LONGHORN_S3_ENDPOINT}}
-          --dry-run=client -o yaml | kubectl apply -f -
+      - |
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: longhorn-s3-secret
+          namespace: longhorn-system
+        type: Opaque
+        stringData:
+          AWS_ACCESS_KEY_ID: "{{.LONGHORN_S3_ACCESS_KEY}}"
+          AWS_SECRET_ACCESS_KEY: "{{.LONGHORN_S3_SECRET_KEY}}"
+          AWS_ENDPOINTS: "{{.LONGHORN_S3_ENDPOINT}}"
+        EOF
 
   argocd:
     desc: Install or upgrade ArgoCD
@@ -73,34 +87,62 @@ tasks:
       - kubectl label secret argocd-repo-key -n argocd argocd.argoproj.io/secret-type=repository --overwrite
       - helm repo add argo https://argoproj.github.io/argo-helm --force-update
       - helm dependency build cluster/apps/argocd
-      - helm upgrade --install argocd cluster/apps/argocd
-          --namespace argocd
-          --set argo-cd.configs.secret.extra.dex\\.github\\.clientID={{.GITHUB_OAUTH_CLIENT_ID}}
-          --set argo-cd.configs.secret.extra.dex\\.github\\.clientSecret={{.GITHUB_OAUTH_CLIENT_SECRET}}
-          --force-conflicts
-          --wait --timeout 5m
+      - |
+        cat <<'EOF' | helm upgrade --install argocd cluster/apps/argocd \
+          --namespace argocd \
+          --force-conflicts \
+          --wait --timeout 5m \
+          --values /dev/stdin
+        argo-cd:
+          configs:
+            secret:
+              extra:
+                dex.github.clientID: "{{.GITHUB_OAUTH_CLIENT_ID}}"
+                dex.github.clientSecret: "{{.GITHUB_OAUTH_CLIENT_SECRET}}"
+        EOF
 
   db3000-secrets:
     desc: Create secrets for db3000 media apps (namespace must exist first)
     cmds:
-      - kubectl create secret generic media-smb-creds
-          --namespace db3000
-          --from-literal=username={{.SMB_USERNAME}}
-          --from-literal=password={{.SMB_PASSWORD}}
-          --dry-run=client -o yaml | kubectl apply -f -
-      - kubectl create secret generic transmission-vpn-secrets
-          --namespace db3000
-          --from-literal=VPN_SERVICE_PROVIDER={{.VPN_SERVICE_PROVIDER}}
-          --from-literal=VPN_TYPE={{.VPN_TYPE}}
-          --from-literal=WIREGUARD_PRIVATE_KEY={{.VPN_WIREGUARD_PRIVATE_KEY}}
-          --from-literal=WIREGUARD_ADDRESSES={{.VPN_WIREGUARD_ADDRESSES}}
-          --from-literal=SERVER_CITIES={{.VPN_SERVER_CITIES}}
-          --dry-run=client -o yaml | kubectl apply -f -
-      - kubectl create secret generic transmission-proxy-credentials
-          --namespace db3000
-          --from-literal=HTTPPROXY_USER={{.VPN_PROXY_USER}}
-          --from-literal=HTTPPROXY_PASSWORD={{.VPN_PROXY_PASSWORD}}
-          --dry-run=client -o yaml | kubectl apply -f -
+      - |
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: media-smb-creds
+          namespace: db3000
+        type: Opaque
+        stringData:
+          username: "{{.SMB_USERNAME}}"
+          password: "{{.SMB_PASSWORD}}"
+        EOF
+      - |
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: transmission-vpn-secrets
+          namespace: db3000
+        type: Opaque
+        stringData:
+          VPN_SERVICE_PROVIDER: "{{.VPN_SERVICE_PROVIDER}}"
+          VPN_TYPE: "{{.VPN_TYPE}}"
+          WIREGUARD_PRIVATE_KEY: "{{.VPN_WIREGUARD_PRIVATE_KEY}}"
+          WIREGUARD_ADDRESSES: "{{.VPN_WIREGUARD_ADDRESSES}}"
+          SERVER_CITIES: "{{.VPN_SERVER_CITIES}}"
+        EOF
+      - |
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: transmission-proxy-credentials
+          namespace: db3000
+        type: Opaque
+        stringData:
+          HTTPPROXY_USER: "{{.VPN_PROXY_USER}}"
+          HTTPPROXY_PASSWORD: "{{.VPN_PROXY_PASSWORD}}"
+        EOF
       - yq -r '.vpn_auth_config' vars.yaml |
           kubectl create secret generic gluetun-auth-secrets
           --namespace db3000
@@ -110,20 +152,42 @@ tasks:
   gitea-secrets:
     desc: Create Gitea secrets (namespace created by ArgoCD)
     cmds:
-      - kubectl create secret generic gitea-admin-secret
-          --namespace gitea
-          --from-literal=username={{.GITEA_ADMIN_USER}}
-          --from-literal=password={{.GITEA_ADMIN_PASSWORD}}
-          --from-literal=email={{.GITEA_ADMIN_EMAIL}}
-          --dry-run=client -o yaml | kubectl apply -f -
       - |
-        kubectl create secret generic gitea-config-secrets \
-          --namespace gitea \
-          --from-literal=database="$(printf 'HOST={{.GITEA_POSTGRES_HOST}}\nNAME={{.GITEA_POSTGRES_DB}}\nUSER={{.GITEA_POSTGRES_USER}}\nPASSWD={{.GITEA_POSTGRES_PASSWORD}}')" \
-          --from-literal=security="$(printf 'SECRET_KEY={{.GITEA_SECRET_KEY}}')" \
-          --from-literal=mailer="$(printf 'USER={{.GITEA_SMTP_USER}}\nPASSWD={{.GITEA_SMTP_PASSWORD}}')" \
-          --from-literal=storage="$(printf 'MINIO_ACCESS_KEY_ID={{.GITEA_MINIO_ACCESS_KEY}}\nMINIO_SECRET_ACCESS_KEY={{.GITEA_MINIO_SECRET_KEY}}')" \
-          --dry-run=client -o yaml | kubectl apply -f -
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: gitea-admin-secret
+          namespace: gitea
+        type: Opaque
+        stringData:
+          username: "{{.GITEA_ADMIN_USER}}"
+          password: "{{.GITEA_ADMIN_PASSWORD}}"
+          email: "{{.GITEA_ADMIN_EMAIL}}"
+        EOF
+      - |
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: gitea-config-secrets
+          namespace: gitea
+        type: Opaque
+        stringData:
+          database: |-
+            HOST={{.GITEA_POSTGRES_HOST}}
+            NAME={{.GITEA_POSTGRES_DB}}
+            USER={{.GITEA_POSTGRES_USER}}
+            PASSWD={{.GITEA_POSTGRES_PASSWORD}}
+          security: |-
+            SECRET_KEY={{.GITEA_SECRET_KEY}}
+          mailer: |-
+            USER={{.GITEA_SMTP_USER}}
+            PASSWD={{.GITEA_SMTP_PASSWORD}}
+          storage: |-
+            MINIO_ACCESS_KEY_ID={{.GITEA_MINIO_ACCESS_KEY}}
+            MINIO_SECRET_ACCESS_KEY={{.GITEA_MINIO_SECRET_KEY}}
+        EOF
 
   renovate-secret:
     desc: Create Renovate GitHub App secret (namespace created by ArgoCD)
