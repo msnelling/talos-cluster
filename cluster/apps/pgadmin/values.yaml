@@ -1,0 +1,31 @@
+pgadmin4:
+  existingSecret: pgadmin-credentials
+  secretKeys:
+    pgadminPasswordKey: password
+
+  env:
+    email: admin@example.com
+    enhanced_cookie_protection: "False"
+
+  serverDefinitions:
+    enabled: true
+    resourceType: ConfigMap
+    servers:
+      cnpgCluster:
+        Name: "CNPG Cluster (primary)"
+        Group: "Servers"
+        Port: 5432
+        Username: postgres
+        Host: cnpg-cluster-rw
+        SSLMode: prefer
+        MaintenanceDB: postgres
+
+  persistentVolume:
+    enabled: true
+    size: 1Gi
+
+  resources:
+    requests:
+      memory: 128Mi
+    limits:
+      memory: 512Mi
