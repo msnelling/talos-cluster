@@ -19,7 +19,7 @@ initdb:
   owner: gitea
 
 backup:
-  endpointURL: "https://truenas.local:9000"
+  endpointURL: "https://s3.xmple.io:9000"
   destinationPath: "s3://cnpg-backup/"
   secretName: cnpg-s3-creds
   retentionPolicy: "7d"

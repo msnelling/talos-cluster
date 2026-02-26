@@ -4,7 +4,7 @@ pgadmin4:
     pgadminPasswordKey: password
 
   env:
-    email: admin@example.com
+    email: masnelling@icloud.com
     enhanced_cookie_protection: "False"
 
   serverDefinitions:
