@@ -153,14 +153,14 @@ tasks:
 
         # --- Delete Cluster CR ---
         TIMEOUT=600
-        START_WAIT=$SECONDS
+        START_WAIT=$(date +%s)
 
         echo "Deleting Cluster CR (pods will terminate)..."
         kubectl delete cluster "$CLUSTER_NAME" -n "$NAMESPACE" --wait=true --timeout=120s
 
         echo "Waiting for all pods to terminate..."
         until [ "$(kubectl get pods -n "$NAMESPACE" -l "cnpg.io/cluster=$CLUSTER_NAME" --no-headers 2>/dev/null | wc -l | tr -d ' ')" -eq "0" ]; do
-          if [ $((SECONDS - START_WAIT)) -ge $TIMEOUT ]; then
+          if [ $(($(date +%s) - START_WAIT)) -ge $TIMEOUT ]; then
             echo "ERROR: Timed out waiting for pods to terminate. ArgoCD remains paused."
             echo "Debug: kubectl get pods -n $NAMESPACE -l cnpg.io/cluster=$CLUSTER_NAME"
             exit 1
@@ -178,7 +178,7 @@ tasks:
         echo "Waiting for cluster to become healthy..."
 
         until [ "$(kubectl get pods -n "$NAMESPACE" -l "cnpg.io/cluster=$CLUSTER_NAME" --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ')" -ge "1" ]; do
-          if [ $((SECONDS - START_WAIT)) -ge $TIMEOUT ]; then
+          if [ $(($(date +%s) - START_WAIT)) -ge $TIMEOUT ]; then
             echo "ERROR: Timed out waiting for pods. ArgoCD remains paused."
             echo "Debug: kubectl get pods -n $NAMESPACE -l cnpg.io/cluster=$CLUSTER_NAME"
             echo "Resume manually after resolving."
@@ -189,7 +189,7 @@ tasks:
         echo "At least one pod is running."
 
         until [ "$(kubectl get cluster "$CLUSTER_NAME" -n "$NAMESPACE" -o jsonpath='{.status.phase}')" = "Cluster in healthy state" ]; do
-          if [ $((SECONDS - START_WAIT)) -ge $TIMEOUT ]; then
+          if [ $(($(date +%s) - START_WAIT)) -ge $TIMEOUT ]; then
             echo "ERROR: Timed out waiting for healthy state. ArgoCD remains paused."
             echo "Debug: kubectl cnpg status $CLUSTER_NAME -n $NAMESPACE"
             exit 1
@@ -301,10 +301,10 @@ tasks:
 
         # --- Wait for healthy ---
         echo "Waiting for temporary cluster to become healthy (timeout: 10 min)..."
-        START_WAIT=$SECONDS
+        START_WAIT=$(date +%s)
 
         while [ "$(kubectl get pods -n "$NAMESPACE" -l "cnpg.io/cluster=$TEMP_CLUSTER" --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ')" -lt "1" ]; do
-          if [ $((SECONDS - START_WAIT)) -ge $TIMEOUT ]; then
+          if [ $(($(date +%s) - START_WAIT)) -ge $TIMEOUT ]; then
             echo "FAILED: Timed out waiting for pod."
             exit 1
           fi
@@ -313,14 +313,14 @@ tasks:
         echo "Pod is running."
 
         while [ "$(kubectl get cluster "$TEMP_CLUSTER" -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null)" != "Cluster in healthy state" ]; do
-          if [ $((SECONDS - START_WAIT)) -ge $TIMEOUT ]; then
+          if [ $(($(date +%s) - START_WAIT)) -ge $TIMEOUT ]; then
             echo "FAILED: Timed out waiting for healthy state."
             exit 1
           fi
           sleep 5
         done
 
-        RECOVERY_TIME=$((SECONDS - START_WAIT))
+        RECOVERY_TIME=$(($(date +%s) - START_WAIT))
         MINUTES=$((RECOVERY_TIME / 60))
         SECS=$((RECOVERY_TIME % 60))
         echo "Temporary cluster is healthy."
