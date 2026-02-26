@@ -99,7 +99,11 @@ tasks:
           sleep 5
         done
       - 'echo "At least one pod is running. Waiting for cluster health..."'
-      - kubectl cnpg status cnpg-cluster -n cnpg-cluster --wait --timeout 300
+      - |
+        until kubectl cnpg status cnpg-cluster -n cnpg-cluster 2>&1 | grep -q "Cluster in healthy state"; do
+          sleep 5
+        done
+      - kubectl cnpg status cnpg-cluster -n cnpg-cluster
       - |
         echo ""
         echo "Cluster is healthy. Resuming ArgoCD auto-sync..."
