@@ -29,22 +29,8 @@ spec:
       database: {{ .Values.initdb.database }}
       owner: {{ .Values.initdb.owner }}
 
-  backup:
-    target: prefer-standby
-    retentionPolicy: {{ .Values.backup.retentionPolicy }}
-    barmanObjectStore:
-      endpointURL: {{ .Values.backup.endpointURL }}
-      destinationPath: {{ .Values.backup.destinationPath }}
-      s3Credentials:
-        accessKeyId:
-          name: {{ .Values.backup.secretName }}
-          key: ACCESS_KEY_ID
-        secretAccessKey:
-          name: {{ .Values.backup.secretName }}
-          key: ACCESS_SECRET_KEY
-      wal:
-        compression: {{ .Values.backup.wal.compression }}
-        maxParallel: {{ .Values.backup.wal.maxParallel }}
-      data:
-        compression: {{ .Values.backup.data.compression }}
-        jobs: {{ .Values.backup.data.jobs }}
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: cnpg-cluster-backup
