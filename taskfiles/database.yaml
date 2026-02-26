@@ -152,11 +152,19 @@ tasks:
           -p '{"spec":{"syncPolicy":{"automated":null}}}'
 
         # --- Delete Cluster CR ---
+        TIMEOUT=600
+        START_WAIT=$SECONDS
+
         echo "Deleting Cluster CR (pods will terminate)..."
         kubectl delete cluster "$CLUSTER_NAME" -n "$NAMESPACE" --wait=true --timeout=120s
 
         echo "Waiting for all pods to terminate..."
         until [ "$(kubectl get pods -n "$NAMESPACE" -l "cnpg.io/cluster=$CLUSTER_NAME" --no-headers 2>/dev/null | wc -l | tr -d ' ')" -eq "0" ]; do
+          if [ $((SECONDS - START_WAIT)) -ge $TIMEOUT ]; then
+            echo "ERROR: Timed out waiting for pods to terminate. ArgoCD remains paused."
+            echo "Debug: kubectl get pods -n $NAMESPACE -l cnpg.io/cluster=$CLUSTER_NAME"
+            exit 1
+          fi
           sleep 3
         done
         echo "All pods terminated."
@@ -166,10 +174,8 @@ tasks:
         echo "Applying recovery manifest..."
         echo "$RECOVERY_MANIFEST" | kubectl apply -f -
 
-        # --- Wait for healthy (10 min timeout) ---
-        echo "Waiting for cluster to become healthy (timeout: 10 min)..."
-        TIMEOUT=600
-        START_WAIT=$SECONDS
+        # --- Wait for healthy ---
+        echo "Waiting for cluster to become healthy..."
 
         until [ "$(kubectl get pods -n "$NAMESPACE" -l "cnpg.io/cluster=$CLUSTER_NAME" --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ')" -ge "1" ]; do
           if [ $((SECONDS - START_WAIT)) -ge $TIMEOUT ]; then
@@ -215,6 +221,7 @@ tasks:
   restore-verify:
     desc: "Non-destructive DR test: restore to temp cluster, validate, cleanup (usage: task db:restore-verify [-- \"PITR-timestamp\"])"
     deps: [_require-cnpg-plugin, _require-yq, _require-helm]
+    interactive: true
     cmds:
       - |
         set -euo pipefail
