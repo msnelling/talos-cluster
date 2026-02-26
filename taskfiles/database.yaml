@@ -28,7 +28,7 @@ tasks:
   backups:
     desc: List all backups with status
     cmds:
-      - kubectl get backup -n cnpg-cluster --sort-by=.metadata.creationTimestamp
+      - kubectl get backups.postgresql.cnpg.io -n cnpg-cluster --sort-by=.metadata.creationTimestamp
 
   psql:
     desc: Open interactive psql shell on the primary
@@ -45,7 +45,7 @@ tasks:
         echo "=== CNPG Cluster Restore - Step 1 of 3 ==="
         echo ""
         echo "Current backups:"
-      - kubectl get backup -n cnpg-cluster --sort-by=.metadata.creationTimestamp
+      - kubectl get backups.postgresql.cnpg.io -n cnpg-cluster --sort-by=.metadata.creationTimestamp
       - |
         echo ""
         read -rp "This will DELETE the cnpg-cluster and prepare for restore. Continue? (yes/no) " CONFIRM
