@@ -1,0 +1,23 @@
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: cnpg-cluster-backup
+  namespace: {{ .Release.Namespace }}
+spec:
+  configuration:
+    endpointURL: {{ .Values.backup.endpointURL }}
+    destinationPath: {{ .Values.backup.destinationPath }}
+    s3Credentials:
+      accessKeyId:
+        name: {{ .Values.backup.secretName }}
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: {{ .Values.backup.secretName }}
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: {{ .Values.backup.wal.compression }}
+      maxParallel: {{ .Values.backup.wal.maxParallel }}
+    data:
+      compression: {{ .Values.backup.data.compression }}
+      jobs: {{ .Values.backup.data.jobs }}
+  retentionPolicy: {{ .Values.backup.retentionPolicy }}
