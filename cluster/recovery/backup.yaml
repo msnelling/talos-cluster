@@ -1,0 +1,11 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Backup
+metadata:
+  name: cnpg-cluster-on-demand-${TIMESTAMP}
+  namespace: cnpg-cluster
+spec:
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+  cluster:
+    name: cnpg-cluster

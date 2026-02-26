@@ -9,6 +9,8 @@ includes:
     taskfile: ./taskfiles/components.yaml
   day2:
     taskfile: ./taskfiles/day2.yaml
+  db:
+    taskfile: ./taskfiles/database.yaml
   utility:
     taskfile: ./taskfiles/utility.yaml
 

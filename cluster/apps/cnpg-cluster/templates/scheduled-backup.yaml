@@ -6,7 +6,10 @@ metadata:
 spec:
   immediate: true
   schedule: {{ .Values.scheduledBackup.schedule | quote }}
-  method: barmanObjectStore
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+  target: prefer-standby
   backupOwnerReference: self
   cluster:
     name: cnpg-cluster

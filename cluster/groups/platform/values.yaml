@@ -26,3 +26,6 @@ apps:
   - name: cnpg-operator
     namespace: cnpg-system
     path: cluster/apps/cnpg-operator
+  - name: barman-cloud-plugin
+    namespace: cnpg-system
+    path: cluster/apps/barman-cloud-plugin
