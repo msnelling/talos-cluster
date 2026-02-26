@@ -20,18 +20,8 @@ tasks:
     desc: Trigger an on-demand backup
     cmds:
       - |
-        TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-        cat <<EOF | kubectl apply -f -
-        apiVersion: postgresql.cnpg.io/v1
-        kind: Backup
-        metadata:
-          name: cnpg-cluster-on-demand-${TIMESTAMP}
-          namespace: cnpg-cluster
-        spec:
-          method: barmanObjectStore
-          cluster:
-            name: cnpg-cluster
-        EOF
+        export TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+        envsubst < cluster/recovery/backup.yaml | kubectl apply -f -
         echo "Backup cnpg-cluster-on-demand-${TIMESTAMP} triggered."
         echo "Monitor with: task db:backups"
 
@@ -83,63 +73,16 @@ tasks:
     desc: "Apply recovery Cluster CR (usage: task db:restore-apply [-- \"PITR-timestamp\"])"
     cmds:
       - |
-        RECOVERY_TARGET=""
+        export RECOVERY_TARGET=""
         if [ -n "{{.CLI_ARGS}}" ]; then
-          RECOVERY_TARGET="
-            recoveryTarget:
+          export RECOVERY_TARGET="      recoveryTarget:
               targetTime: \"{{.CLI_ARGS}}\""
           echo "Restoring to point-in-time: {{.CLI_ARGS}}"
         else
           echo "Restoring from latest backup"
         fi
 
-        cat <<EOF | kubectl apply -f -
-        apiVersion: postgresql.cnpg.io/v1
-        kind: Cluster
-        metadata:
-          name: cnpg-cluster
-          namespace: cnpg-cluster
-        spec:
-          instances: 3
-
-          storage:
-            size: 10Gi
-            storageClass: longhorn-single-replica
-
-          resources:
-            requests:
-              memory: 256Mi
-              cpu: 100m
-            limits:
-              memory: 1Gi
-
-          affinity:
-            topologyKey: kubernetes.io/hostname
-
-          enableSuperuserAccess: true
-          primaryUpdateMethod: switchover
-          primaryUpdateStrategy: unsupervised
-
-          bootstrap:
-            recovery:
-              source: cnpg-cluster-backup${RECOVERY_TARGET}
-
-          externalClusters:
-            - name: cnpg-cluster-backup
-              barmanObjectStore:
-                endpointURL: "https://s3.xmple.io:9000"
-                destinationPath: "s3://cnpg-backup/"
-                s3Credentials:
-                  accessKeyId:
-                    name: cnpg-s3-creds
-                    key: ACCESS_KEY_ID
-                  secretAccessKey:
-                    name: cnpg-s3-creds
-                    key: ACCESS_SECRET_KEY
-                wal:
-                  compression: gzip
-                  maxParallel: 1
-        EOF
+        envsubst < cluster/recovery/cluster-restore.yaml | kubectl apply -f -
 
         echo ""
         echo "Recovery Cluster CR applied."
