@@ -280,7 +280,7 @@ tasks:
 
         YQ_EXPR='select(.kind == "Cluster")
           | .spec.bootstrap = {"recovery": {"source": "cnpg-cluster-backup"}}
-          | .spec.externalClusters = [{"name": "cnpg-cluster-backup", "plugin": {"name": "barman-cloud.cloudnative-pg.io", "parameters": {"barmanObjectName": "cnpg-cluster-backup"}}}]
+          | .spec.externalClusters = [{"name": "cnpg-cluster-backup", "plugin": {"name": "barman-cloud.cloudnative-pg.io", "parameters": {"barmanObjectName": "cnpg-cluster-backup", "serverName": "cnpg-cluster"}}}]
           | del(.spec.plugins)
           | .metadata.name = "cnpg-cluster-restore-test"
           | .spec.instances = 1'
