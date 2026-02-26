@@ -10,6 +10,22 @@ tasks:
           kubectl cnpg plugin is required. Install with:
             brew install kubectl-cnpg
 
+  _require-yq:
+    internal: true
+    preconditions:
+      - sh: command -v yq
+        msg: |
+          yq is required. Install with:
+            brew install yq
+
+  _require-helm:
+    internal: true
+    preconditions:
+      - sh: command -v helm
+        msg: |
+          helm is required. Install with:
+            brew install helm
+
   status:
     desc: Show CNPG cluster health and backup status
     deps: [_require-cnpg-plugin]
@@ -37,79 +53,281 @@ tasks:
     cmds:
       - kubectl cnpg psql cnpg-cluster -n cnpg-cluster
 
-  restore-prep:
-    desc: "Prepare for restore: pause ArgoCD, delete Cluster CR, wait for termination"
+  restore:
+    desc: "Restore CNPG cluster from backup (usage: task db:restore [-- \"PITR-timestamp\"])"
+    deps: [_require-cnpg-plugin, _require-yq, _require-helm]
     interactive: true
     cmds:
       - |
-        echo "=== CNPG Cluster Restore - Step 1 of 3 ==="
+        set -euo pipefail
+
+        PITR_TARGET="{{.CLI_ARGS}}"
+        NAMESPACE="cnpg-cluster"
+        CLUSTER_NAME="cnpg-cluster"
+        CHART_PATH="cluster/apps/cnpg-cluster"
+        DB_NAME=$(yq '.initdb.database' "$CHART_PATH/values.yaml")
+
+        echo "=== CNPG Cluster Restore ==="
         echo ""
-        echo "Current backups:"
-      - kubectl get backups.postgresql.cnpg.io -n cnpg-cluster --sort-by=.metadata.creationTimestamp
-      - |
+
+        # --- Pre-flight checks ---
+        echo "Running pre-flight checks..."
+
+        COMPLETED_BACKUPS=$(kubectl get backups.postgresql.cnpg.io -n "$NAMESPACE" \
+          -o jsonpath='{.items[?(@.status.phase=="completed")].metadata.name}')
+        if [ -z "$COMPLETED_BACKUPS" ]; then
+          echo "ERROR: No completed backups found. Cannot restore."
+          exit 1
+        fi
+        BACKUP_COUNT=$(echo "$COMPLETED_BACKUPS" | wc -w | tr -d ' ')
+        LATEST_BACKUP=$(echo "$COMPLETED_BACKUPS" | tr ' ' '\n' | tail -1)
+        echo "  Backups: $BACKUP_COUNT completed"
+        echo "  Latest: $LATEST_BACKUP"
+
+        CLUSTER_PHASE=$(kubectl get cluster "$CLUSTER_NAME" -n "$NAMESPACE" \
+          -o jsonpath='{.status.phase}' 2>/dev/null || echo "unknown")
+        if [ "$CLUSTER_PHASE" != "Cluster in healthy state" ]; then
+          echo "  WARNING: Cluster is not healthy (phase: $CLUSTER_PHASE)"
+        fi
+
+        FIRST_RECOVERABLE=$(kubectl get cluster "$CLUSTER_NAME" -n "$NAMESPACE" \
+          -o jsonpath='{.status.firstRecoverabilityPoint}' 2>/dev/null || echo "")
+        if [ -n "$FIRST_RECOVERABLE" ]; then
+          echo "  Recovery window: $FIRST_RECOVERABLE → now"
+        else
+          echo "  WARNING: No recovery window information. PITR may not work."
+        fi
+
+        if [ -n "$PITR_TARGET" ]; then
+          echo "  PITR target: $PITR_TARGET"
+          if [ -n "$FIRST_RECOVERABLE" ] && [[ "$PITR_TARGET" < "$FIRST_RECOVERABLE" ]]; then
+            echo "ERROR: PITR target ($PITR_TARGET) is before first recoverability point ($FIRST_RECOVERABLE)."
+            exit 1
+          fi
+        fi
+
         echo ""
-        read -rp "This will DELETE the cnpg-cluster and prepare for restore. Continue? (yes/no) " CONFIRM
+        echo "Available backups:"
+        kubectl get backups.postgresql.cnpg.io -n "$NAMESPACE" --sort-by=.metadata.creationTimestamp
+
+        # --- Generate recovery manifest (before any destructive action) ---
+        echo ""
+        echo "Generating recovery manifest from Helm chart..."
+
+        YQ_EXPR='select(.kind == "Cluster")
+          | .spec.bootstrap = {"recovery": {"source": "cnpg-cluster-backup"}}
+          | .spec.externalClusters = [{"name": "cnpg-cluster-backup", "plugin": {"name": "barman-cloud.cloudnative-pg.io", "parameters": {"barmanObjectName": "cnpg-cluster-backup"}}}]
+          | del(.spec.plugins)'
+
+        if [ -n "$PITR_TARGET" ]; then
+          YQ_EXPR="$YQ_EXPR | .spec.bootstrap.recovery.recoveryTarget.targetTime = \"$PITR_TARGET\""
+        fi
+
+        RECOVERY_MANIFEST=$(helm template cnpg-cluster "$CHART_PATH" --namespace "$NAMESPACE" | yq "$YQ_EXPR")
+        if [ -z "$RECOVERY_MANIFEST" ]; then
+          echo "ERROR: Failed to generate recovery manifest."
+          exit 1
+        fi
+        echo "Recovery manifest generated successfully."
+
+        # --- Confirmation ---
+        echo ""
+        if [ -n "$PITR_TARGET" ]; then
+          echo "Ready to restore to point-in-time: $PITR_TARGET"
+        else
+          echo "Ready to restore from latest backup."
+        fi
+        read -rp "This will DELETE the production cluster and restore from backup. Continue? (yes/no) " CONFIRM
         if [ "$CONFIRM" != "yes" ] && [ "$CONFIRM" != "y" ]; then
           echo "Aborted."
           exit 1
         fi
-      - 'echo "Pausing ArgoCD auto-sync for cnpg-cluster and data group..."'
-      - kubectl patch application cnpg-cluster -n argocd --type merge -p '{"spec":{"syncPolicy":{"automated":null}}}'
-      - kubectl patch application app-data -n argocd --type merge -p '{"spec":{"syncPolicy":{"automated":null}}}'
-      - 'echo "Deleting Cluster CR (pods will terminate)..."'
-      - kubectl delete cluster cnpg-cluster -n cnpg-cluster --wait=true --timeout=120s
-      - 'echo "Waiting for all cnpg-cluster pods to terminate..."'
-      - |
-        until [ "$(kubectl get pods -n cnpg-cluster -l cnpg.io/cluster=cnpg-cluster --no-headers 2>/dev/null | wc -l | tr -d ' ')" -eq "0" ]; do
+
+        # --- Pause ArgoCD ---
+        echo ""
+        echo "Pausing ArgoCD auto-sync..."
+        kubectl patch application cnpg-cluster -n argocd --type merge \
+          -p '{"spec":{"syncPolicy":{"automated":null}}}'
+        kubectl patch application app-data -n argocd --type merge \
+          -p '{"spec":{"syncPolicy":{"automated":null}}}'
+
+        # --- Delete Cluster CR ---
+        echo "Deleting Cluster CR (pods will terminate)..."
+        kubectl delete cluster "$CLUSTER_NAME" -n "$NAMESPACE" --wait=true --timeout=120s
+
+        echo "Waiting for all pods to terminate..."
+        until [ "$(kubectl get pods -n "$NAMESPACE" -l "cnpg.io/cluster=$CLUSTER_NAME" --no-headers 2>/dev/null | wc -l | tr -d ' ')" -eq "0" ]; do
           sleep 3
         done
-      - |
+        echo "All pods terminated."
+
+        # --- Apply recovery manifest ---
         echo ""
-        echo "Cluster deleted and pods terminated."
-        echo "Next steps:"
-        echo "  Latest backup:  task db:restore-apply"
-        echo "  Point-in-time:  task db:restore-apply -- \"2026-02-26T14:30:00+00\""
+        echo "Applying recovery manifest..."
+        echo "$RECOVERY_MANIFEST" | kubectl apply -f -
 
-  restore-apply:
-    desc: "Apply recovery Cluster CR (usage: task db:restore-apply [-- \"PITR-timestamp\"])"
-    cmds:
-      - |
-        export RECOVERY_TARGET=""
-        if [ -n "{{.CLI_ARGS}}" ]; then
-          export RECOVERY_TARGET="      recoveryTarget:
-              targetTime: \"{{.CLI_ARGS}}\""
-          echo "Restoring to point-in-time: {{.CLI_ARGS}}"
-        else
-          echo "Restoring from latest backup"
-        fi
+        # --- Wait for healthy (10 min timeout) ---
+        echo "Waiting for cluster to become healthy (timeout: 10 min)..."
+        TIMEOUT=600
+        START_WAIT=$SECONDS
 
-        envsubst < cluster/recovery/cluster-restore.yaml | kubectl apply -f -
-
-        echo ""
-        echo "Recovery Cluster CR applied."
-        echo "Next: task db:restore-finish"
-
-  restore-finish:
-    desc: "Complete restore: wait for health, resume ArgoCD auto-sync"
-    deps: [_require-cnpg-plugin]
-    cmds:
-      - 'echo "Waiting for cnpg-cluster pods to be ready..."'
-      - |
-        until [ "$(kubectl get pods -n cnpg-cluster -l cnpg.io/cluster=cnpg-cluster --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ')" -ge "1" ]; do
+        until [ "$(kubectl get pods -n "$NAMESPACE" -l "cnpg.io/cluster=$CLUSTER_NAME" --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ')" -ge "1" ]; do
+          if [ $((SECONDS - START_WAIT)) -ge $TIMEOUT ]; then
+            echo "ERROR: Timed out waiting for pods. ArgoCD remains paused."
+            echo "Debug: kubectl get pods -n $NAMESPACE -l cnpg.io/cluster=$CLUSTER_NAME"
+            echo "Resume manually after resolving."
+            exit 1
+          fi
           sleep 5
         done
-      - 'echo "At least one pod is running. Waiting for cluster health..."'
-      - |
-        until kubectl cnpg status cnpg-cluster -n cnpg-cluster 2>&1 | grep -q "Cluster in healthy state"; do
+        echo "At least one pod is running."
+
+        until [ "$(kubectl get cluster "$CLUSTER_NAME" -n "$NAMESPACE" -o jsonpath='{.status.phase}')" = "Cluster in healthy state" ]; do
+          if [ $((SECONDS - START_WAIT)) -ge $TIMEOUT ]; then
+            echo "ERROR: Timed out waiting for healthy state. ArgoCD remains paused."
+            echo "Debug: kubectl cnpg status $CLUSTER_NAME -n $NAMESPACE"
+            exit 1
+          fi
           sleep 5
         done
-      - kubectl cnpg status cnpg-cluster -n cnpg-cluster
-      - |
+        echo "Cluster is healthy."
+
+        # --- Validate ---
+        echo "Validating database connectivity..."
+        kubectl cnpg psql "$CLUSTER_NAME" -n "$NAMESPACE" -- -d "$DB_NAME" -c "SELECT 1" > /dev/null 2>&1
+        echo "Database '$DB_NAME' is accessible."
+
+        # --- Resume ArgoCD ---
         echo ""
-        echo "Cluster is healthy. Resuming ArgoCD auto-sync..."
-      - kubectl patch application cnpg-cluster -n argocd --type merge -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
-      - kubectl patch application app-data -n argocd --type merge -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
-      - |
+        echo "Resuming ArgoCD auto-sync..."
+        kubectl patch application cnpg-cluster -n argocd --type merge \
+          -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
+        kubectl patch application app-data -n argocd --type merge \
+          -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
+
+        # --- Final status ---
+        echo ""
+        kubectl cnpg status "$CLUSTER_NAME" -n "$NAMESPACE"
         echo ""
         echo "Restore complete. ArgoCD will re-sync the normal Cluster template."
         echo "(Safe: CNPG will not re-init an existing data directory)"
+
+  restore-verify:
+    desc: "Non-destructive DR test: restore to temp cluster, validate, cleanup (usage: task db:restore-verify [-- \"PITR-timestamp\"])"
+    deps: [_require-cnpg-plugin, _require-yq, _require-helm]
+    cmds:
+      - |
+        set -euo pipefail
+
+        PITR_TARGET="{{.CLI_ARGS}}"
+        NAMESPACE="cnpg-cluster"
+        CLUSTER_NAME="cnpg-cluster"
+        TEMP_CLUSTER="cnpg-cluster-restore-test"
+        CHART_PATH="cluster/apps/cnpg-cluster"
+        DB_NAME=$(yq '.initdb.database' "$CHART_PATH/values.yaml")
+        TIMEOUT=600
+
+        cleanup() {
+          echo ""
+          echo "Cleaning up temporary cluster..."
+          kubectl delete cluster "$TEMP_CLUSTER" -n "$NAMESPACE" --ignore-not-found --timeout=60s 2>/dev/null || true
+          kubectl delete pvc -n "$NAMESPACE" -l "cnpg.io/cluster=$TEMP_CLUSTER" --ignore-not-found 2>/dev/null || true
+          echo "Cleanup complete. Production cluster was not affected."
+        }
+        trap cleanup EXIT
+
+        echo "=== CNPG Restore Verification (Non-destructive) ==="
+        echo ""
+
+        # --- Pre-flight checks ---
+        echo "Running pre-flight checks..."
+
+        COMPLETED_BACKUPS=$(kubectl get backups.postgresql.cnpg.io -n "$NAMESPACE" \
+          -o jsonpath='{.items[?(@.status.phase=="completed")].metadata.name}')
+        if [ -z "$COMPLETED_BACKUPS" ]; then
+          echo "ERROR: No completed backups found."
+          exit 1
+        fi
+        BACKUP_COUNT=$(echo "$COMPLETED_BACKUPS" | wc -w | tr -d ' ')
+        LATEST_BACKUP=$(echo "$COMPLETED_BACKUPS" | tr ' ' '\n' | tail -1)
+        echo "  Backups: $BACKUP_COUNT completed"
+        echo "  Latest: $LATEST_BACKUP"
+
+        FIRST_RECOVERABLE=$(kubectl get cluster "$CLUSTER_NAME" -n "$NAMESPACE" \
+          -o jsonpath='{.status.firstRecoverabilityPoint}' 2>/dev/null || echo "")
+        if [ -n "$FIRST_RECOVERABLE" ]; then
+          echo "  Recovery window: $FIRST_RECOVERABLE → now"
+        fi
+
+        if [ -n "$PITR_TARGET" ]; then
+          echo "  PITR target: $PITR_TARGET"
+          if [ -n "$FIRST_RECOVERABLE" ] && [[ "$PITR_TARGET" < "$FIRST_RECOVERABLE" ]]; then
+            echo "ERROR: PITR target is before first recoverability point."
+            exit 1
+          fi
+        fi
+
+        # --- Generate temp cluster manifest ---
+        echo ""
+        echo "Generating temporary cluster manifest..."
+
+        YQ_EXPR='select(.kind == "Cluster")
+          | .spec.bootstrap = {"recovery": {"source": "cnpg-cluster-backup"}}
+          | .spec.externalClusters = [{"name": "cnpg-cluster-backup", "plugin": {"name": "barman-cloud.cloudnative-pg.io", "parameters": {"barmanObjectName": "cnpg-cluster-backup"}}}]
+          | del(.spec.plugins)
+          | .metadata.name = "cnpg-cluster-restore-test"
+          | .spec.instances = 1'
+
+        if [ -n "$PITR_TARGET" ]; then
+          YQ_EXPR="$YQ_EXPR | .spec.bootstrap.recovery.recoveryTarget.targetTime = \"$PITR_TARGET\""
+        fi
+
+        MANIFEST=$(helm template cnpg-cluster "$CHART_PATH" --namespace "$NAMESPACE" | yq "$YQ_EXPR")
+        if [ -z "$MANIFEST" ]; then
+          echo "ERROR: Failed to generate manifest."
+          exit 1
+        fi
+
+        # --- Apply temp cluster ---
+        echo "Applying temporary cluster (1 instance)..."
+        echo "$MANIFEST" | kubectl apply -f -
+
+        # --- Wait for healthy ---
+        echo "Waiting for temporary cluster to become healthy (timeout: 10 min)..."
+        START_WAIT=$SECONDS
+
+        while [ "$(kubectl get pods -n "$NAMESPACE" -l "cnpg.io/cluster=$TEMP_CLUSTER" --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ')" -lt "1" ]; do
+          if [ $((SECONDS - START_WAIT)) -ge $TIMEOUT ]; then
+            echo "FAILED: Timed out waiting for pod."
+            exit 1
+          fi
+          sleep 5
+        done
+        echo "Pod is running."
+
+        while [ "$(kubectl get cluster "$TEMP_CLUSTER" -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null)" != "Cluster in healthy state" ]; do
+          if [ $((SECONDS - START_WAIT)) -ge $TIMEOUT ]; then
+            echo "FAILED: Timed out waiting for healthy state."
+            exit 1
+          fi
+          sleep 5
+        done
+
+        RECOVERY_TIME=$((SECONDS - START_WAIT))
+        MINUTES=$((RECOVERY_TIME / 60))
+        SECS=$((RECOVERY_TIME % 60))
+        echo "Temporary cluster is healthy."
+
+        # --- Validate ---
+        echo "Validating database connectivity..."
+        if kubectl cnpg psql "$TEMP_CLUSTER" -n "$NAMESPACE" -- -d "$DB_NAME" -c "SELECT 1" > /dev/null 2>&1; then
+          echo "Database '$DB_NAME' is accessible."
+          echo ""
+          echo "Restore test PASSED. Recovery took ${MINUTES}m ${SECS}s."
+        else
+          echo ""
+          echo "Restore test FAILED: Could not connect to database '$DB_NAME'."
+          exit 1
+        fi
+
+        # Cleanup happens via EXIT trap
