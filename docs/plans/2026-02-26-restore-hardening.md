@@ -17,6 +17,8 @@ The current restore process has several fragilities exposed during the barman cl
 
 5. **ArgoCD race condition (now fixed).** The original task only paused `app-data` (the group), not the `cnpg-cluster` Application itself. Self-heal recreated the Cluster immediately after deletion, causing a timeline split. This is fixed but illustrates how the destructive approach amplifies bugs.
 
+6. **WAL gap on cluster deletion.** When the Cluster CR is deleted, the CNPG operator shuts down PostgreSQL and the barman-cloud plugin sidecar. If the plugin sidecar doesn't finish archiving the final WAL segment before the pod terminates (observed: pods stuck in Terminating state for minutes due to Longhorn PVC detach latency on Talos), the WAL chain has a gap. This makes the most recent backup unrestorable — PostgreSQL reports "could not locate required checkpoint record" because the WAL needed to reach the checkpoint was never archived. **This is the root cause of the timeline mismatch failure.** The destructive-first workflow makes this fatal: by the time you discover the backup is unrestorable, the production cluster is already gone.
+
 ## Design: Non-Destructive Restore
 
 ### Core principle
