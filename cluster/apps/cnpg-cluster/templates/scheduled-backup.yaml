@@ -9,6 +9,7 @@ spec:
   method: plugin
   pluginConfiguration:
     name: barman-cloud.cloudnative-pg.io
+  target: prefer-standby
   backupOwnerReference: self
   cluster:
     name: cnpg-cluster
