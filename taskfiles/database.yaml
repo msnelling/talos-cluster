@@ -53,7 +53,8 @@ tasks:
           echo "Aborted."
           exit 1
         fi
-      - 'echo "Pausing ArgoCD auto-sync for data group..."'
+      - 'echo "Pausing ArgoCD auto-sync for cnpg-cluster and data group..."'
+      - kubectl patch application cnpg-cluster -n argocd --type merge -p '{"spec":{"syncPolicy":{"automated":null}}}'
       - kubectl patch application app-data -n argocd --type merge -p '{"spec":{"syncPolicy":{"automated":null}}}'
       - 'echo "Deleting Cluster CR (pods will terminate)..."'
       - kubectl delete cluster cnpg-cluster -n cnpg-cluster --wait=true --timeout=120s
@@ -101,7 +102,8 @@ tasks:
       - kubectl cnpg status cnpg-cluster -n cnpg-cluster --wait --timeout 300
       - |
         echo ""
-        echo "Cluster is healthy. Resuming ArgoCD auto-sync for data group..."
+        echo "Cluster is healthy. Resuming ArgoCD auto-sync..."
+      - kubectl patch application cnpg-cluster -n argocd --type merge -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
       - kubectl patch application app-data -n argocd --type merge -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
       - |
         echo ""
