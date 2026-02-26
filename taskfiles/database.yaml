@@ -49,7 +49,7 @@ tasks:
       - |
         echo ""
         read -rp "This will DELETE the cnpg-cluster and prepare for restore. Continue? (yes/no) " CONFIRM
-        if [ "$CONFIRM" != "yes" ]; then
+        if [ "$CONFIRM" != "yes" ] && [ "$CONFIRM" != "y" ]; then
           echo "Aborted."
           exit 1
         fi
