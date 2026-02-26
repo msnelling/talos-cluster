@@ -67,5 +67,4 @@ cnpg_s3_access_key: "your-cnpg-s3-access-key"
 cnpg_s3_secret_key: "your-cnpg-s3-secret-key"
 
 # pgAdmin
-pgadmin_email: "admin@example.com"
 pgadmin_password: "your-pgadmin-password"
