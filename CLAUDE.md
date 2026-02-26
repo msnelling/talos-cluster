@@ -54,12 +54,29 @@ task setup:download       # Download Talos secure-boot ISO from Image Factory
 task setup:kubeconfig     # Retrieve and merge kubeconfig
 ```
 
+### Database (CNPG PostgreSQL)
+```bash
+task db:status          # Show cluster health and backup status
+task db:backup          # Trigger an on-demand backup
+task db:backups         # List all backups with status
+task db:psql            # Open interactive psql shell on the primary
+task db:restore         # Full restore: pre-flight → delete → recover → resume ArgoCD
+                        # Usage: task db:restore [-- "2026-02-26T14:30:00+00:00"]
+task db:restore-verify  # Non-destructive DR test: restore to temp cluster, validate, cleanup
+                        # Usage: task db:restore-verify [-- "2026-02-26T14:30:00+00:00"]
+```
+
+`db:restore` runs pre-flight checks (backup exists, WAL health, PITR validation), generates the recovery manifest from the Helm chart via `helm template` + `yq`, then performs the restore. On timeout, ArgoCD remains paused for manual investigation.
+
+`db:restore-verify` restores to a temporary single-instance cluster, validates database connectivity, reports timing, and cleans up automatically. Production cluster is never touched.
+
 ### Taskfile Structure
 
 Tasks are split into domain-grouped files under `taskfiles/` with namespaced includes:
 - `taskfiles/setup.yaml` -- cluster provisioning (download, generate, patch, apply, bootstrap, kubeconfig)
 - `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, argocd)
 - `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, join-node, reboot, reset)
+- `taskfiles/database.yaml` -- CNPG PostgreSQL operations (status, backup, restore, psql)
 - `taskfiles/utility.yaml` -- diagnostics (status, dashboard, disks, links)
 
 Root `Taskfile.yaml` holds global vars, shared precondition helpers (`_require-nodes`, `_require-helm`), and top-level orchestration tasks (`setup`, `reconfigure`).
@@ -195,7 +212,7 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **ArgoCD chart v9.x uses `global.domain` for SSO/OIDC.** The Dex issuer URL is derived from `global.domain`, not `configs.cm.url`. Without it, GitHub SSO fails silently with an empty OIDC issuer. The `server.insecure` flag only works under `configs.params`, not `server:`.
 
-**CNPG backups use the Barman Cloud Plugin (not deprecated in-tree barmanObjectStore).** Plugin runs as sidecar injected by barman-cloud-plugin chart in cnpg-system. Config lives in ObjectStore CR, referenced by Cluster via `spec.plugins`. Recovery templates in `cluster/recovery/` reference the ObjectStore CR by name rather than inlining S3 config.
+**CNPG backups use the Barman Cloud Plugin (not deprecated in-tree barmanObjectStore).** Plugin runs as sidecar injected by barman-cloud-plugin chart in cnpg-system. Config lives in ObjectStore CR, referenced by Cluster via `spec.plugins`. Recovery manifests are generated dynamically by `db:restore` via `helm template` + `yq` — no static recovery templates to drift.
 
 **Longhorn's pre-delete hook (`longhorn-uninstall`) is destructive.** If a Longhorn Application is deleted with `resources-finalizer` and `pre-delete-finalizer`, ArgoCD will repeatedly run the uninstall job. Fix by removing finalizers from the Application (`kubectl patch application longhorn -n argocd --type=json -p='[{"op":"remove","path":"/metadata/finalizers"}]'`), then deleting the uninstall job.
 

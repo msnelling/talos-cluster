@@ -10,6 +10,22 @@ tasks:
           kubectl cnpg plugin is required. Install with:
             brew install kubectl-cnpg
 
+  _require-yq:
+    internal: true
+    preconditions:
+      - sh: command -v yq
+        msg: |
+          yq is required. Install with:
+            brew install yq
+
+  _require-helm:
+    internal: true
+    preconditions:
+      - sh: command -v helm
+        msg: |
+          helm is required. Install with:
+            brew install helm
+
   status:
     desc: Show CNPG cluster health and backup status
     deps: [_require-cnpg-plugin]
@@ -20,7 +36,7 @@ tasks:
     desc: Trigger an on-demand backup
     cmds:
       - |
-        export TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+        export TIMESTAMP=$(date +%Y%m%d%H%M%S)
         envsubst < cluster/recovery/backup.yaml | kubectl apply -f -
         echo "Backup cnpg-cluster-on-demand-${TIMESTAMP} triggered."
         echo "Monitor with: task db:backups"
@@ -37,79 +53,16 @@ tasks:
     cmds:
       - kubectl cnpg psql cnpg-cluster -n cnpg-cluster
 
-  restore-prep:
-    desc: "Prepare for restore: pause ArgoCD, delete Cluster CR, wait for termination"
+  restore:
+    desc: "Restore CNPG cluster from backup (usage: task db:restore [-- \"PITR-timestamp\"])"
+    deps: [_require-cnpg-plugin, _require-yq, _require-helm]
     interactive: true
     cmds:
-      - |
-        echo "=== CNPG Cluster Restore - Step 1 of 3 ==="
-        echo ""
-        echo "Current backups:"
-      - kubectl get backups.postgresql.cnpg.io -n cnpg-cluster --sort-by=.metadata.creationTimestamp
-      - |
-        echo ""
-        read -rp "This will DELETE the cnpg-cluster and prepare for restore. Continue? (yes/no) " CONFIRM
-        if [ "$CONFIRM" != "yes" ] && [ "$CONFIRM" != "y" ]; then
-          echo "Aborted."
-          exit 1
-        fi
-      - 'echo "Pausing ArgoCD auto-sync for cnpg-cluster and data group..."'
-      - kubectl patch application cnpg-cluster -n argocd --type merge -p '{"spec":{"syncPolicy":{"automated":null}}}'
-      - kubectl patch application app-data -n argocd --type merge -p '{"spec":{"syncPolicy":{"automated":null}}}'
-      - 'echo "Deleting Cluster CR (pods will terminate)..."'
-      - kubectl delete cluster cnpg-cluster -n cnpg-cluster --wait=true --timeout=120s
-      - 'echo "Waiting for all cnpg-cluster pods to terminate..."'
-      - |
-        until [ "$(kubectl get pods -n cnpg-cluster -l cnpg.io/cluster=cnpg-cluster --no-headers 2>/dev/null | wc -l | tr -d ' ')" -eq "0" ]; do
-          sleep 3
-        done
-      - |
-        echo ""
-        echo "Cluster deleted and pods terminated."
-        echo "Next steps:"
-        echo "  Latest backup:  task db:restore-apply"
-        echo "  Point-in-time:  task db:restore-apply -- \"2026-02-26T14:30:00+00\""
+      - scripts/cnpg-restore.sh {{.CLI_ARGS}}
 
-  restore-apply:
-    desc: "Apply recovery Cluster CR (usage: task db:restore-apply [-- \"PITR-timestamp\"])"
+  restore-verify:
+    desc: "Non-destructive DR test: restore to temp cluster, validate, cleanup (usage: task db:restore-verify [-- \"PITR-timestamp\"])"
+    deps: [_require-cnpg-plugin, _require-yq, _require-helm]
+    interactive: true
     cmds:
-      - |
-        export RECOVERY_TARGET=""
-        if [ -n "{{.CLI_ARGS}}" ]; then
-          export RECOVERY_TARGET="      recoveryTarget:
-              targetTime: \"{{.CLI_ARGS}}\""
-          echo "Restoring to point-in-time: {{.CLI_ARGS}}"
-        else
-          echo "Restoring from latest backup"
-        fi
-
-        envsubst < cluster/recovery/cluster-restore.yaml | kubectl apply -f -
-
-        echo ""
-        echo "Recovery Cluster CR applied."
-        echo "Next: task db:restore-finish"
-
-  restore-finish:
-    desc: "Complete restore: wait for health, resume ArgoCD auto-sync"
-    deps: [_require-cnpg-plugin]
-    cmds:
-      - 'echo "Waiting for cnpg-cluster pods to be ready..."'
-      - |
-        until [ "$(kubectl get pods -n cnpg-cluster -l cnpg.io/cluster=cnpg-cluster --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ')" -ge "1" ]; do
-          sleep 5
-        done
-      - 'echo "At least one pod is running. Waiting for cluster health..."'
-      - |
-        until kubectl cnpg status cnpg-cluster -n cnpg-cluster 2>&1 | grep -q "Cluster in healthy state"; do
-          sleep 5
-        done
-      - kubectl cnpg status cnpg-cluster -n cnpg-cluster
-      - |
-        echo ""
-        echo "Cluster is healthy. Resuming ArgoCD auto-sync..."
-      - kubectl patch application cnpg-cluster -n argocd --type merge -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
-      - kubectl patch application app-data -n argocd --type merge -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
-      - |
-        echo ""
-        echo "Restore complete. ArgoCD will re-sync the normal Cluster template."
-        echo "(Safe: CNPG will not re-init an existing data directory)"
+      - scripts/cnpg-restore-verify.sh {{.CLI_ARGS}}
