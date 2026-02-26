@@ -238,11 +238,13 @@ tasks:
           echo ""
           echo "Cleaning up temporary cluster..."
           kubectl delete cluster "$TEMP_CLUSTER" -n "$NAMESPACE" --ignore-not-found --timeout=60s 2>/dev/null || true
-          # Delete PVCs first, then any orphaned PVs (Retain policy leaves them behind)
+          # Capture PV names before deleting PVCs, then delete PVCs, PVs, and Longhorn volumes
+          # (Longhorn Retain policy leaves PVs and volumes behind after PVC deletion)
           PV_NAMES=$(kubectl get pvc -n "$NAMESPACE" -l "cnpg.io/cluster=$TEMP_CLUSTER" -o jsonpath='{.items[*].spec.volumeName}' 2>/dev/null || true)
           kubectl delete pvc -n "$NAMESPACE" -l "cnpg.io/cluster=$TEMP_CLUSTER" --ignore-not-found 2>/dev/null || true
           for pv in $PV_NAMES; do
             kubectl delete pv "$pv" --ignore-not-found 2>/dev/null || true
+            kubectl delete volumes.longhorn.io "$pv" -n longhorn-system --ignore-not-found 2>/dev/null || true
           done
           echo "Cleanup complete. Production cluster was not affected."
         }
