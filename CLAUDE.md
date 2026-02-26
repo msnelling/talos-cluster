@@ -195,6 +195,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **ArgoCD chart v9.x uses `global.domain` for SSO/OIDC.** The Dex issuer URL is derived from `global.domain`, not `configs.cm.url`. Without it, GitHub SSO fails silently with an empty OIDC issuer. The `server.insecure` flag only works under `configs.params`, not `server:`.
 
+**CNPG backups use the Barman Cloud Plugin (not deprecated in-tree barmanObjectStore).** Plugin runs as sidecar injected by barman-cloud-plugin chart in cnpg-system. Config lives in ObjectStore CR, referenced by Cluster via `spec.plugins`. Recovery templates in `cluster/recovery/` reference the ObjectStore CR by name rather than inlining S3 config.
+
 **Longhorn's pre-delete hook (`longhorn-uninstall`) is destructive.** If a Longhorn Application is deleted with `resources-finalizer` and `pre-delete-finalizer`, ArgoCD will repeatedly run the uninstall job. Fix by removing finalizers from the Application (`kubectl patch application longhorn -n argocd --type=json -p='[{"op":"remove","path":"/metadata/finalizers"}]'`), then deleting the uninstall job.
 
 **Talos enforces `baseline` PodSecurity by default on all namespaces.** Components needing privileged access (Longhorn, etc.) require a namespace template with `pod-security.kubernetes.io/enforce: privileged` label.

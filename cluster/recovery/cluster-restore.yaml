@@ -30,16 +30,7 @@ spec:
 ${RECOVERY_TARGET}
   externalClusters:
     - name: cnpg-cluster-backup
-      barmanObjectStore:
-        endpointURL: "https://s3.xmple.io:9000"
-        destinationPath: "s3://cnpg-backup/"
-        s3Credentials:
-          accessKeyId:
-            name: cnpg-s3-creds
-            key: ACCESS_KEY_ID
-          secretAccessKey:
-            name: cnpg-s3-creds
-            key: ACCESS_SECRET_KEY
-        wal:
-          compression: gzip
-          maxParallel: 1
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: cnpg-cluster-backup
