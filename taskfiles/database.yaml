@@ -2,13 +2,17 @@ version: "3"
 
 tasks:
 
-  status:
-    desc: Show CNPG cluster health and backup status
+  _require-cnpg-plugin:
+    internal: true
     preconditions:
-      - sh: kubectl cnpg version >/dev/null 2>&1
+      - sh: command -v kubectl-cnpg
         msg: |
           kubectl cnpg plugin is required. Install with:
             brew install kubectl-cnpg
+
+  status:
+    desc: Show CNPG cluster health and backup status
+    deps: [_require-cnpg-plugin]
     cmds:
       - kubectl cnpg status cnpg-cluster -n cnpg-cluster
 
@@ -38,12 +42,8 @@ tasks:
 
   psql:
     desc: Open interactive psql shell on the primary
+    deps: [_require-cnpg-plugin]
     interactive: true
-    preconditions:
-      - sh: kubectl cnpg version >/dev/null 2>&1
-        msg: |
-          kubectl cnpg plugin is required. Install with:
-            brew install kubectl-cnpg
     cmds:
       - kubectl cnpg psql cnpg-cluster -n cnpg-cluster
 
@@ -51,12 +51,13 @@ tasks:
     desc: "Prepare for restore: pause ArgoCD, delete Cluster CR, wait for termination"
     interactive: true
     cmds:
-      - echo "=== CNPG Cluster Restore - Step 1 of 3 ==="
-      - echo ""
-      - 'echo "Current backups:"'
-      - kubectl get backup -n cnpg-cluster --sort-by=.metadata.creationTimestamp
-      - echo ""
       - |
+        echo "=== CNPG Cluster Restore - Step 1 of 3 ==="
+        echo ""
+        echo "Current backups:"
+      - kubectl get backup -n cnpg-cluster --sort-by=.metadata.creationTimestamp
+      - |
+        echo ""
         read -rp "This will DELETE the cnpg-cluster and prepare for restore. Continue? (yes/no) " CONFIRM
         if [ "$CONFIRM" != "yes" ]; then
           echo "Aborted."
@@ -71,11 +72,12 @@ tasks:
         until [ "$(kubectl get pods -n cnpg-cluster -l cnpg.io/cluster=cnpg-cluster --no-headers 2>/dev/null | wc -l | tr -d ' ')" -eq "0" ]; do
           sleep 3
         done
-      - echo ""
-      - echo "Cluster deleted and pods terminated."
-      - 'echo "Next steps:"'
-      - 'echo "  Latest backup:  task db:restore-apply"'
-      - 'echo "  Point-in-time:  task db:restore-apply -- \"2026-02-26T14:30:00+00\""'
+      - |
+        echo ""
+        echo "Cluster deleted and pods terminated."
+        echo "Next steps:"
+        echo "  Latest backup:  task db:restore-apply"
+        echo "  Point-in-time:  task db:restore-apply -- \"2026-02-26T14:30:00+00\""
 
   restore-apply:
     desc: "Apply recovery Cluster CR (usage: task db:restore-apply [-- \"PITR-timestamp\"])"
@@ -145,11 +147,7 @@ tasks:
 
   restore-finish:
     desc: "Complete restore: wait for health, resume ArgoCD auto-sync"
-    preconditions:
-      - sh: kubectl cnpg version >/dev/null 2>&1
-        msg: |
-          kubectl cnpg plugin is required. Install with:
-            brew install kubectl-cnpg
+    deps: [_require-cnpg-plugin]
     cmds:
       - 'echo "Waiting for cnpg-cluster pods to be ready..."'
       - |
@@ -158,9 +156,11 @@ tasks:
         done
       - 'echo "At least one pod is running. Waiting for cluster health..."'
       - kubectl cnpg status cnpg-cluster -n cnpg-cluster --wait --timeout 300
-      - echo ""
-      - 'echo "Cluster is healthy. Resuming ArgoCD auto-sync for data group..."'
+      - |
+        echo ""
+        echo "Cluster is healthy. Resuming ArgoCD auto-sync for data group..."
       - kubectl patch application app-data -n argocd --type merge -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
-      - echo ""
-      - echo "Restore complete. ArgoCD will re-sync the normal Cluster template."
-      - 'echo "(Safe: CNPG will not re-init an existing data directory)"'
+      - |
+        echo ""
+        echo "Restore complete. ArgoCD will re-sync the normal Cluster template."
+        echo "(Safe: CNPG will not re-init an existing data directory)"
