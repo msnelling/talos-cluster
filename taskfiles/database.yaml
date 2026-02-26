@@ -116,7 +116,7 @@ tasks:
 
         YQ_EXPR='select(.kind == "Cluster")
           | .spec.bootstrap = {"recovery": {"source": "cnpg-cluster-backup"}}
-          | .spec.externalClusters = [{"name": "cnpg-cluster-backup", "plugin": {"name": "barman-cloud.cloudnative-pg.io", "parameters": {"barmanObjectName": "cnpg-cluster-backup"}}}]
+          | .spec.externalClusters = [{"name": "cnpg-cluster-backup", "plugin": {"name": "barman-cloud.cloudnative-pg.io", "parameters": {"barmanObjectName": "cnpg-cluster-backup", "serverName": "cnpg-cluster"}}}]
           | del(.spec.plugins)'
 
         if [ -n "$PITR_TARGET" ]; then
@@ -238,7 +238,12 @@ tasks:
           echo ""
           echo "Cleaning up temporary cluster..."
           kubectl delete cluster "$TEMP_CLUSTER" -n "$NAMESPACE" --ignore-not-found --timeout=60s 2>/dev/null || true
+          # Delete PVCs first, then any orphaned PVs (Retain policy leaves them behind)
+          PV_NAMES=$(kubectl get pvc -n "$NAMESPACE" -l "cnpg.io/cluster=$TEMP_CLUSTER" -o jsonpath='{.items[*].spec.volumeName}' 2>/dev/null || true)
           kubectl delete pvc -n "$NAMESPACE" -l "cnpg.io/cluster=$TEMP_CLUSTER" --ignore-not-found 2>/dev/null || true
+          for pv in $PV_NAMES; do
+            kubectl delete pv "$pv" --ignore-not-found 2>/dev/null || true
+          done
           echo "Cleanup complete. Production cluster was not affected."
         }
         trap cleanup EXIT
