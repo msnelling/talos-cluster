@@ -23,6 +23,7 @@ jobs:
             **/*.yml
           files_ignore: |
             **/templates/**
+            cluster/recovery/**
 
       - name: Install yamllint
         if: steps.changed.outputs.any_changed == 'true'
