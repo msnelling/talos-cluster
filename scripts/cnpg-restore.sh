@@ -55,7 +55,7 @@ TIMEOUT=600
 START_WAIT=$(date +%s)
 
 echo "Deleting Cluster CR (pods will terminate)..."
-kubectl delete cluster "$CLUSTER_NAME" -n "$NAMESPACE" --wait=true --timeout=120s
+kubectl delete cluster "$CLUSTER_NAME" -n "$NAMESPACE" --wait=true --timeout=120s --ignore-not-found
 
 echo "Waiting for all pods to terminate..."
 until [ "$(kubectl get pods -n "$NAMESPACE" -l "cnpg.io/cluster=$CLUSTER_NAME" --no-headers 2>/dev/null | wc -l | tr -d ' ')" -eq "0" ]; do
@@ -79,8 +79,7 @@ cnpg_wait_for_healthy "$CLUSTER_NAME" $TIMEOUT
 
 # --- Validate ---
 echo "Validating database connectivity..."
-kubectl cnpg psql "$CLUSTER_NAME" -n "$NAMESPACE" -- -d "$DB_NAME" -c "SELECT 1" > /dev/null 2>&1
-echo "Database '$DB_NAME' is accessible."
+cnpg_validate_db "$CLUSTER_NAME" "$DB_NAME"
 
 # --- Resume ArgoCD ---
 echo ""
