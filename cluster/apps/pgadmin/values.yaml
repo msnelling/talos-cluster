@@ -20,6 +20,9 @@ pgadmin4:
         SSLMode: prefer
         MaintenanceDB: postgres
 
+  strategy:
+    type: Recreate
+
   persistentVolume:
     enabled: true
     existingClaim: pgadmin-data
