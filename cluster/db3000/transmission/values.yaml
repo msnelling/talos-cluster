@@ -1,7 +1,7 @@
 media-app:
   image:
     repository: ghcr.io/linuxserver/transmission
-    tag: "4.1.0"
+    tag: "4.1.1"
   containerPort: 9091
   extraPorts:
     - name: bt-tcp
