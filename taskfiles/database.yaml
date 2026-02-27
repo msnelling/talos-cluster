@@ -10,22 +10,6 @@ tasks:
           kubectl cnpg plugin is required. Install with:
             brew install kubectl-cnpg
 
-  _require-yq:
-    internal: true
-    preconditions:
-      - sh: command -v yq
-        msg: |
-          yq is required. Install with:
-            brew install yq
-
-  _require-helm:
-    internal: true
-    preconditions:
-      - sh: command -v helm
-        msg: |
-          helm is required. Install with:
-            brew install helm
-
   status:
     desc: Show CNPG cluster health and backup status
     deps: [_require-cnpg-plugin]
@@ -55,14 +39,14 @@ tasks:
 
   restore:
     desc: "Restore CNPG cluster from backup (usage: task db:restore [-- \"PITR-timestamp\"])"
-    deps: [_require-cnpg-plugin, _require-yq, _require-helm]
+    deps: [_require-cnpg-plugin, ":_require-yq", ":_require-helm"]
     interactive: true
     cmds:
       - scripts/cnpg-restore.sh {{.CLI_ARGS}}
 
   restore-verify:
     desc: "Non-destructive DR test: restore to temp cluster, validate, cleanup (usage: task db:restore-verify [-- \"PITR-timestamp\"])"
-    deps: [_require-cnpg-plugin, _require-yq, _require-helm]
+    deps: [_require-cnpg-plugin, ":_require-yq", ":_require-helm"]
     interactive: true
     cmds:
       - scripts/cnpg-restore-verify.sh {{.CLI_ARGS}}
