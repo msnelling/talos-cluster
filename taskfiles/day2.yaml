@@ -2,6 +2,38 @@ version: "3"
 
 tasks:
 
+  _run-on-nodes:
+    internal: true
+    # Reusable node loop: iterates nodes, runs a command, tracks failures.
+    # Required vars:
+    #   ACTION_VERB  - present participle for logging (e.g., "Upgrading Talos on")
+    #   ACTION_PAST  - past tense for failure summary (e.g., "upgrade")
+    #   CMD_TEMPLATE - shell command to run per node ($NODE and $NODE_IP are available)
+    #   TARGET_NODES - space-separated node names (defaults to all nodes)
+    cmds:
+      - |
+        if [ -n "{{.TARGET_NODES}}" ]; then
+          NODES="{{.TARGET_NODES}}"
+        else
+          NODES="{{.NODE_NAMES}}"
+        fi
+        FAILED=""
+        for NODE in $NODES; do
+          NODE_IP=$(yq ".nodes[] | select(.name == \"$NODE\") | .ip" vars.yaml)
+          echo "{{.ACTION_VERB}} $NODE ($NODE_IP)..."
+          if eval "{{.CMD_TEMPLATE}}"; then
+            echo "$NODE: OK"
+          else
+            echo "WARNING: Failed to {{.ACTION_PAST}} $NODE, continuing..."
+            FAILED="$FAILED $NODE"
+          fi
+        done
+        if [ -n "$FAILED" ]; then
+          echo ""
+          echo "Failed to {{.ACTION_PAST}}:$FAILED"
+          exit 1
+        fi
+
   upgrade-talos:
     desc: "Upgrade Talos OS on all nodes or a specific node (usage: task day2:upgrade-talos [-- <node-name>])"
     deps: [":_require-nodes"]
@@ -9,31 +41,16 @@ tasks:
       SCHEMATIC_ID:
         sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
     cmds:
-      - |
-        if [ -n "{{.CLI_ARGS}}" ]; then
-          NODES="{{.CLI_ARGS}}"
-        else
-          NODES="{{.NODE_NAMES}}"
-        fi
-        FAILED=""
-        for NODE in $NODES; do
-          NODE_IP=$(yq ".nodes[] | select(.name == \"$NODE\") | .ip" vars.yaml)
-          echo "Upgrading Talos on $NODE ($NODE_IP)..."
-          if talosctl upgrade \
-              --context {{.CLUSTER_NAME}} \
-              --nodes "$NODE_IP" \
-              --image "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"; then
-            echo "$NODE: OK"
-          else
-            echo "WARNING: Failed to upgrade $NODE, continuing..."
-            FAILED="$FAILED $NODE"
-          fi
-        done
-        if [ -n "$FAILED" ]; then
-          echo ""
-          echo "Failed to upgrade:$FAILED"
-          exit 1
-        fi
+      - task: _run-on-nodes
+        vars:
+          TARGET_NODES: "{{.CLI_ARGS}}"
+          ACTION_VERB: "Upgrading Talos on"
+          ACTION_PAST: "upgrade"
+          CMD_TEMPLATE: >-
+            talosctl upgrade
+            --context {{.CLUSTER_NAME}}
+            --nodes "$NODE_IP"
+            --image "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"
 
   upgrade-k8s:
     desc: Upgrade Kubernetes version (cluster-wide)
@@ -79,53 +96,23 @@ tasks:
     desc: "Reboot all nodes or a specific node (usage: task day2:reboot [-- <node-name>])"
     deps: [":_require-nodes"]
     cmds:
-      - |
-        if [ -n "{{.CLI_ARGS}}" ]; then
-          NODES="{{.CLI_ARGS}}"
-        else
-          NODES="{{.NODE_NAMES}}"
-        fi
-        FAILED=""
-        for NODE in $NODES; do
-          NODE_IP=$(yq ".nodes[] | select(.name == \"$NODE\") | .ip" vars.yaml)
-          echo "Rebooting $NODE ($NODE_IP)..."
-          if talosctl reboot --context {{.CLUSTER_NAME}} --nodes "$NODE_IP"; then
-            echo "$NODE: OK"
-          else
-            echo "WARNING: Failed to reboot $NODE, continuing..."
-            FAILED="$FAILED $NODE"
-          fi
-        done
-        if [ -n "$FAILED" ]; then
-          echo ""
-          echo "Failed to reboot:$FAILED"
-          exit 1
-        fi
+      - task: _run-on-nodes
+        vars:
+          TARGET_NODES: "{{.CLI_ARGS}}"
+          ACTION_VERB: "Rebooting"
+          ACTION_PAST: "reboot"
+          CMD_TEMPLATE: >-
+            talosctl reboot --context {{.CLUSTER_NAME}} --nodes "$NODE_IP"
 
   reset:
     desc: "Wipe all nodes or a specific node (DESTRUCTIVE, usage: task day2:reset [-- <node-name>])"
     prompt: This will WIPE node(s) and destroy all data. Are you sure?
     deps: [":_require-nodes"]
     cmds:
-      - |
-        if [ -n "{{.CLI_ARGS}}" ]; then
-          NODES="{{.CLI_ARGS}}"
-        else
-          NODES="{{.NODE_NAMES}}"
-        fi
-        FAILED=""
-        for NODE in $NODES; do
-          NODE_IP=$(yq ".nodes[] | select(.name == \"$NODE\") | .ip" vars.yaml)
-          echo "Resetting $NODE ($NODE_IP)..."
-          if talosctl reset --context {{.CLUSTER_NAME}} --nodes "$NODE_IP" --graceful=false --reboot; then
-            echo "$NODE: OK"
-          else
-            echo "WARNING: Failed to reset $NODE, continuing..."
-            FAILED="$FAILED $NODE"
-          fi
-        done
-        if [ -n "$FAILED" ]; then
-          echo ""
-          echo "Failed to reset:$FAILED"
-          exit 1
-        fi
+      - task: _run-on-nodes
+        vars:
+          TARGET_NODES: "{{.CLI_ARGS}}"
+          ACTION_VERB: "Resetting"
+          ACTION_PAST: "reset"
+          CMD_TEMPLATE: >-
+            talosctl reset --context {{.CLUSTER_NAME}} --nodes "$NODE_IP" --graceful=false --reboot

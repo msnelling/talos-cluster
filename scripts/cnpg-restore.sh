@@ -45,10 +45,7 @@ fi
 # --- Pause ArgoCD ---
 echo ""
 echo "Pausing ArgoCD auto-sync..."
-kubectl patch application cnpg-cluster -n argocd --type merge \
-  -p '{"spec":{"syncPolicy":{"automated":null}}}'
-kubectl patch application app-data -n argocd --type merge \
-  -p '{"spec":{"syncPolicy":{"automated":null}}}'
+cnpg_pause_argocd
 
 # --- Delete Cluster CR ---
 TIMEOUT=600
@@ -84,10 +81,7 @@ cnpg_validate_db "$CLUSTER_NAME" "$DB_NAME"
 # --- Resume ArgoCD ---
 echo ""
 echo "Resuming ArgoCD auto-sync..."
-kubectl patch application cnpg-cluster -n argocd --type merge \
-  -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
-kubectl patch application app-data -n argocd --type merge \
-  -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
+cnpg_resume_argocd
 
 # --- Final status ---
 echo ""

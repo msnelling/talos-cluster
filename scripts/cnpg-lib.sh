@@ -3,7 +3,7 @@
 # Shared functions for CNPG restore scripts.
 # Source this file — do not execute it directly.
 #
-# Expects caller to set before sourcing:
+# Functions reference these globals (set by the calling script):
 #   NAMESPACE    — Kubernetes namespace (e.g., "cnpg-cluster")
 #   CLUSTER_NAME — CNPG cluster name (e.g., "cnpg-cluster")
 #   CHART_PATH   — path to the Helm chart (e.g., "cluster/apps/cnpg-cluster")
@@ -12,25 +12,46 @@ cnpg_get_db_name() {
   yq '.initdb.database' "$CHART_PATH/values.yaml"
 }
 
+# cnpg_pause_argocd
+# Disables auto-sync on the cnpg-cluster and app-data ArgoCD applications.
+cnpg_pause_argocd() {
+  local -r apps=("cnpg-cluster" "app-data")
+  for app in "${apps[@]}"; do
+    kubectl patch application "$app" -n argocd --type merge \
+      -p '{"spec":{"syncPolicy":{"automated":null}}}'
+  done
+}
+
+# cnpg_resume_argocd
+# Re-enables auto-sync with prune and selfHeal on the cnpg-cluster and app-data ArgoCD applications.
+cnpg_resume_argocd() {
+  local -r apps=("cnpg-cluster" "app-data")
+  for app in "${apps[@]}"; do
+    kubectl patch application "$app" -n argocd --type merge \
+      -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
+  done
+}
+
 # cnpg_preflight [pitr_target]
 # Validates backups exist and PITR target is within recovery window.
-# Sets globals: BACKUP_COUNT, LATEST_BACKUP, FIRST_RECOVERABLE
 # Exits 1 on fatal errors (no backups, PITR out of range).
 cnpg_preflight() {
   local pitr_target="${1:-}"
 
   echo "Running pre-flight checks..."
 
-  COMPLETED_BACKUPS=$(kubectl get backups.postgresql.cnpg.io -n "$NAMESPACE" \
+  local completed_backups
+  completed_backups=$(kubectl get backups.postgresql.cnpg.io -n "$NAMESPACE" \
     -o jsonpath='{.items[?(@.status.phase=="completed")].metadata.name}')
-  if [ -z "$COMPLETED_BACKUPS" ]; then
+  if [ -z "$completed_backups" ]; then
     echo "ERROR: No completed backups found. Cannot restore."
     exit 1
   fi
-  BACKUP_COUNT=$(echo "$COMPLETED_BACKUPS" | wc -w | tr -d ' ')
-  LATEST_BACKUP=$(echo "$COMPLETED_BACKUPS" | tr ' ' '\n' | tail -1)
-  echo "  Backups: $BACKUP_COUNT completed"
-  echo "  Latest: $LATEST_BACKUP"
+  local backup_count latest_backup
+  backup_count=$(echo "$completed_backups" | wc -w | tr -d ' ')
+  latest_backup=$(echo "$completed_backups" | tr ' ' '\n' | tail -1)
+  echo "  Backups: $backup_count completed"
+  echo "  Latest: $latest_backup"
 
   local cluster_phase
   cluster_phase=$(kubectl get cluster "$CLUSTER_NAME" -n "$NAMESPACE" \
@@ -39,18 +60,19 @@ cnpg_preflight() {
     echo "  WARNING: Cluster is not healthy (phase: $cluster_phase)"
   fi
 
-  FIRST_RECOVERABLE=$(kubectl get cluster "$CLUSTER_NAME" -n "$NAMESPACE" \
+  local first_recoverable
+  first_recoverable=$(kubectl get cluster "$CLUSTER_NAME" -n "$NAMESPACE" \
     -o jsonpath='{.status.firstRecoverabilityPoint}' 2>/dev/null || echo "")
-  if [ -n "$FIRST_RECOVERABLE" ]; then
-    echo "  Recovery window: $FIRST_RECOVERABLE → now"
+  if [ -n "$first_recoverable" ]; then
+    echo "  Recovery window: $first_recoverable → now"
   else
     echo "  WARNING: No recovery window information. PITR may not work."
   fi
 
   if [ -n "$pitr_target" ]; then
     echo "  PITR target: $pitr_target"
-    if [ -n "$FIRST_RECOVERABLE" ] && [[ "$pitr_target" < "$FIRST_RECOVERABLE" ]]; then
-      echo "ERROR: PITR target ($pitr_target) is before first recoverability point ($FIRST_RECOVERABLE)."
+    if [ -n "$first_recoverable" ] && [[ "$pitr_target" < "$first_recoverable" ]]; then
+      echo "ERROR: PITR target ($pitr_target) is before first recoverability point ($first_recoverable)."
       exit 1
     fi
   fi
@@ -112,7 +134,7 @@ cnpg_wait_for_healthy() {
 }
 
 # cnpg_validate_db cluster_name db_name [timeout_seconds]
-# Retries psql connectivity check until success or timeout (default 30s).
+# Retries psql connectivity check until success or timeout (default 60s).
 # Exits 1 on timeout.
 cnpg_validate_db() {
   local cluster="$1"

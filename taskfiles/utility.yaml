@@ -35,33 +35,26 @@ tasks:
     deps: [":_require-nodes"]
     cmds:
       - for: { var: NODE_NAMES, as: NODE }
-        task: _disks-node
+        task: _talosctl-per-node
         vars:
           NODE_NAME: "{{ .NODE }}"
-
-  _disks-node:
-    internal: true
-    vars:
-      NODE_IP:
-        sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .ip' vars.yaml
-    cmds:
-      - echo "=== {{.NODE_NAME}} ({{.NODE_IP}}) ==="
-      - talosctl get disks --insecure --nodes {{.NODE_IP}}
+          TALOSCTL_CMD: "get disks"
 
   links:
     desc: List network interfaces on all nodes
     deps: [":_require-nodes"]
     cmds:
       - for: { var: NODE_NAMES, as: NODE }
-        task: _links-node
+        task: _talosctl-per-node
         vars:
           NODE_NAME: "{{ .NODE }}"
+          TALOSCTL_CMD: "get links"
 
-  _links-node:
+  _talosctl-per-node:
     internal: true
     vars:
       NODE_IP:
         sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .ip' vars.yaml
     cmds:
       - echo "=== {{.NODE_NAME}} ({{.NODE_IP}}) ==="
-      - talosctl get links --insecure --nodes {{.NODE_IP}}
+      - talosctl {{.TALOSCTL_CMD}} --insecure --nodes {{.NODE_IP}}

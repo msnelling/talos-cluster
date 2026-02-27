@@ -128,6 +128,12 @@ tasks:
       - sh: command -v helm
         msg: "helm is required. Install with: brew install helm"
 
+  _require-yq:
+    internal: true
+    preconditions:
+      - sh: command -v yq
+        msg: "yq is required. Install with: brew install yq"
+
   setup:
     desc: "Full initial setup: generate, patch, apply, bootstrap, kubeconfig"
     deps: [_require-nodes]
@@ -169,25 +175,10 @@ tasks:
     deps: [_require-nodes]
     cmds:
       - task: setup:patch
-      - |
-        if [ -n "{{.CLI_ARGS}}" ]; then
-          NODES="{{.CLI_ARGS}}"
-        else
-          NODES="{{.NODE_NAMES}}"
-        fi
-        FAILED=""
-        for NODE in $NODES; do
-          NODE_IP=$(yq ".nodes[] | select(.name == \"$NODE\") | .ip" vars.yaml)
-          echo "Reconfiguring $NODE ($NODE_IP)..."
-          if talosctl apply-config --context {{.CLUSTER_NAME}} --nodes "$NODE_IP" --file "generated/$NODE.yaml"; then
-            echo "$NODE: OK"
-          else
-            echo "WARNING: Failed to reconfigure $NODE, continuing..."
-            FAILED="$FAILED $NODE"
-          fi
-        done
-        if [ -n "$FAILED" ]; then
-          echo ""
-          echo "Failed to reconfigure:$FAILED"
-          exit 1
-        fi
+      - task: day2:_run-on-nodes
+        vars:
+          TARGET_NODES: "{{.CLI_ARGS}}"
+          ACTION_VERB: "Reconfiguring"
+          ACTION_PAST: "reconfigure"
+          CMD_TEMPLATE: >-
+            talosctl apply-config --context {{.CLUSTER_NAME}} --nodes "$NODE_IP" --file "generated/$NODE.yaml"
