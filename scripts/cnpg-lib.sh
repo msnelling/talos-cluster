@@ -110,3 +110,26 @@ cnpg_wait_for_healthy() {
   done
   echo "Cluster is healthy."
 }
+
+# cnpg_validate_db cluster_name db_name [timeout_seconds]
+# Retries psql connectivity check until success or timeout (default 30s).
+# Exits 1 on timeout.
+cnpg_validate_db() {
+  local cluster="$1"
+  local db="$2"
+  local timeout="${3:-60}"
+  local start_wait
+  start_wait=$(date +%s)
+
+  local output
+  until output=$(kubectl cnpg psql "$cluster" -n "$NAMESPACE" -- -d "$db" -c "SELECT 1" 2>&1) || echo "$output" | grep -q "(1 row)"; do
+    if [ $(($(date +%s) - start_wait)) -ge "$timeout" ]; then
+      echo ""
+      echo "Restore test FAILED: Could not connect to database '$db'."
+      echo "Last error: $output"
+      exit 1
+    fi
+    sleep 2
+  done
+  echo "Database '$db' is accessible."
+}

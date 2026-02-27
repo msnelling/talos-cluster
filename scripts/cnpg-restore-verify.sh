@@ -59,14 +59,8 @@ SECS=$((RECOVERY_TIME % 60))
 
 # --- Validate ---
 echo "Validating database connectivity..."
-if kubectl cnpg psql "$TEMP_CLUSTER" -n "$NAMESPACE" -- -d "$DB_NAME" -c "SELECT 1" > /dev/null 2>&1; then
-  echo "Database '$DB_NAME' is accessible."
-  echo ""
-  echo "Restore test PASSED. Recovery took ${MINUTES}m ${SECS}s."
-else
-  echo ""
-  echo "Restore test FAILED: Could not connect to database '$DB_NAME'."
-  exit 1
-fi
+cnpg_validate_db "$TEMP_CLUSTER" "$DB_NAME"
+echo ""
+echo "Restore test PASSED. Recovery took ${MINUTES}m ${SECS}s."
 
 # Cleanup happens via EXIT trap
