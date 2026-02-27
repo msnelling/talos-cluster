@@ -50,3 +50,9 @@ tasks:
     interactive: true
     cmds:
       - scripts/cnpg-restore-verify.sh {{.CLI_ARGS}}
+
+  migrate-pgadmin:
+    desc: "Migrate pgAdmin to named Longhorn volume (preserves data)"
+    interactive: true
+    cmds:
+      - scripts/pgadmin-migrate-volume.sh
