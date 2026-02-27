@@ -8,3 +8,4 @@ renovate-app-key.pem
 **/charts/
 **/Chart.lock
 node_modules/
+.worktrees/
