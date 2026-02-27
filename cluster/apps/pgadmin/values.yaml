@@ -22,6 +22,7 @@ pgadmin4:
 
   persistentVolume:
     enabled: true
+    existingClaim: pgadmin-data
     size: 1Gi
 
   resources:
