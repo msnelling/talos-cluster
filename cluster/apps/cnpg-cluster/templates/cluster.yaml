@@ -20,6 +20,10 @@ spec:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 
+  certificates:
+    serverTLSSecret: cnpg-server-tls
+    serverCASecret: cnpg-server-tls
+
   enableSuperuserAccess: true
   primaryUpdateMethod: switchover
   primaryUpdateStrategy: unsupervised
