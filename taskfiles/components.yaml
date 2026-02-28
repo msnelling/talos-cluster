@@ -148,6 +148,22 @@ tasks:
           --namespace db3000
           --from-file=config.toml=/dev/stdin
           --dry-run=client -o yaml | kubectl apply -f -
+      - |
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: jellyseerr-db-secrets
+          namespace: db3000
+        type: Opaque
+        stringData:
+          DB_TYPE: "postgres"
+          DB_HOST: "cnpg-cluster-rw.cnpg-cluster.svc"
+          DB_PORT: "5432"
+          DB_USER: "jellyseerr"
+          DB_PASS: "{{.JELLYSEERR_POSTGRES_PASSWORD}}"
+          DB_NAME: "jellyseerr"
+        EOF
 
   gitea-secrets:
     desc: Create Gitea secrets (namespace created by ArgoCD)

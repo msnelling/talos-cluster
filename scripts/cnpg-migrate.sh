@@ -43,6 +43,9 @@ if ! pg_isready -h "$TRUENAS_HOST" -p 5432 -U postgres -q -t 5; then
 fi
 echo "TrueNAS PostgreSQL is reachable."
 
+# Suppress password prompts for TrueNAS (trust auth)
+export PGPASSWORD=""
+
 # --- Import role with encrypted password from TrueNAS ---
 echo ""
 echo "Importing role '$OWNER' from TrueNAS..."
@@ -91,12 +94,24 @@ pg_dump -h "$TRUENAS_HOST" -p 5432 -U postgres --no-acl --no-owner "$DB_NAME" \
   | kubectl exec -i "$PRIMARY_POD" -n "$NAMESPACE" -c postgres -- \
     psql -U postgres -d "$DB_NAME" --single-transaction -v ON_ERROR_STOP=1
 
-# --- Fix ownership ---
+# --- Fix ownership (tables, sequences, views in public schema) ---
 echo ""
 echo "Reassigning object ownership to '$OWNER'..."
 kubectl exec -i "$PRIMARY_POD" -n "$NAMESPACE" -c postgres -- \
-  psql -U postgres -d "$DB_NAME" -v ON_ERROR_STOP=1 \
-  -c "REASSIGN OWNED BY postgres TO ${OWNER}"
+  psql -U postgres -d "$DB_NAME" -v ON_ERROR_STOP=1 <<SQL
+DO \$\$
+DECLARE
+  obj record;
+BEGIN
+  FOR obj IN SELECT tablename AS name, 'TABLE' AS type FROM pg_tables WHERE schemaname = 'public'
+    UNION ALL SELECT sequencename, 'SEQUENCE' FROM pg_sequences WHERE schemaname = 'public'
+    UNION ALL SELECT viewname, 'VIEW' FROM pg_views WHERE schemaname = 'public'
+  LOOP
+    EXECUTE format('ALTER %s public.%I OWNER TO %I', obj.type, obj.name, '${OWNER}');
+  END LOOP;
+END
+\$\$;
+SQL
 
 # --- Verify table count ---
 echo ""
