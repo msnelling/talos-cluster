@@ -1,3 +1,5 @@
+hostname: pg.xmple.io
+
 instances: 3
 
 storage:
