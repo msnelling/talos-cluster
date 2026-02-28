@@ -22,6 +22,7 @@ spec:
 
   certificates:
     serverTLSSecret: cnpg-server-tls
+    serverCASecret: cnpg-server-ca
 
   enableSuperuserAccess: true
   primaryUpdateMethod: switchover
