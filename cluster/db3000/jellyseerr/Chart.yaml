@@ -1,7 +1,0 @@
-apiVersion: v2
-name: jellyseerr
-version: 0.1.0
-dependencies:
-  - name: media-app
-    version: "0.1.0"
-    repository: "file://../../lib/media-app"
