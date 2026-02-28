@@ -94,6 +94,9 @@ vars:
   # pgAdmin
   PGADMIN_PASSWORD:
     sh: yq '.pgadmin_password' vars.yaml
+  # Jellyseerr
+  JELLYSEERR_POSTGRES_PASSWORD:
+    sh: yq '.jellyseerr_postgres_password' vars.yaml
   # Multi-node helpers
   NODE_NAMES:
     sh: yq '.nodes[].name' vars.yaml
