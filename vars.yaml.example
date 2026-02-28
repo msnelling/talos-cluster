@@ -68,3 +68,12 @@ cnpg_s3_secret_key: "your-cnpg-s3-secret-key"
 
 # pgAdmin
 pgadmin_password: "your-pgadmin-password"
+
+# TrueNAS PostgreSQL (source for migration)
+truenas_postgres_host: "10.1.1.30"
+
+# Database role passwords (for CNPG migration)
+authelia_postgres_password: "your-authelia-db-password"
+hass_postgres_password: "your-hass-db-password"
+jellyseerr_postgres_password: "your-jellyseerr-db-password"
+teslamate_postgres_password: "your-teslamate-db-password"
