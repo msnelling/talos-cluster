@@ -1,0 +1,35 @@
+seerr-chart:
+  fullnameOverride: seerr
+
+  extraEnv:
+    - name: TZ
+      value: Europe/London
+
+  extraEnvFrom:
+    - secretRef:
+        name: seerr-db-secrets
+
+  config:
+    persistence:
+      size: 1Gi
+      volumeName: db3000-jellyseerr-config
+
+  route:
+    main:
+      enabled: true
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+          sectionName: websecure
+      hostnames:
+        - db3000.xmple.io
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
+
+  resources:
+    requests:
+      memory: 1Gi
+    limits:
+      memory: 1Gi
