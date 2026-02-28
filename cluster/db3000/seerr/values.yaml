@@ -1,0 +1,26 @@
+seerr-chart:
+  fullnameOverride: seerr
+
+  extraEnv:
+    - name: TZ
+      value: Europe/London
+
+  extraEnvFrom:
+    - secretRef:
+        name: seerr-db-secrets
+
+  config:
+    persistence:
+      size: 1Gi
+      storageClass: longhorn
+      volumeName: db3000-jellyseerr-config
+
+  route:
+    main:
+      enabled: false
+
+  resources:
+    requests:
+      memory: 1Gi
+    limits:
+      memory: 1Gi

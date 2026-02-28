@@ -91,6 +91,9 @@ vars:
     sh: yq '.cnpg_s3_access_key' vars.yaml
   CNPG_S3_SECRET_KEY:
     sh: yq '.cnpg_s3_secret_key' vars.yaml
+  # Seerr
+  SEERR_POSTGRES_PASSWORD:
+    sh: yq '.seerr_postgres_password' vars.yaml
   # pgAdmin
   PGADMIN_PASSWORD:
     sh: yq '.pgadmin_password' vars.yaml

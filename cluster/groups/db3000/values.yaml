@@ -18,8 +18,8 @@ apps:
     path: cluster/db3000/bazarr
   - name: jellyfin
     path: cluster/db3000/jellyfin
-  - name: jellyseerr
-    path: cluster/db3000/jellyseerr
+  - name: seerr
+    path: cluster/db3000/seerr
   - name: media-storage
     path: cluster/db3000/media-storage
   - name: nzbget
