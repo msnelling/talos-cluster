@@ -6,6 +6,7 @@ media-app:
   containerPort: 5055
   env:
     TZ: Europe/London
+  envFromSecret: jellyseerr-db-secrets
   persistence:
     config:
       size: 1Gi
