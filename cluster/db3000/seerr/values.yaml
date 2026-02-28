@@ -16,17 +16,7 @@ seerr-chart:
 
   route:
     main:
-      enabled: true
-      parentRefs:
-        - name: traefik-gateway
-          namespace: traefik
-          sectionName: websecure
-      hostnames:
-        - db3000.xmple.io
-      matches:
-        - path:
-            type: PathPrefix
-            value: /
+      enabled: false
 
   resources:
     requests:
