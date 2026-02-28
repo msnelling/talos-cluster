@@ -1,0 +1,7 @@
+apiVersion: v2
+name: mc3
+version: 0.1.0
+dependencies:
+  - name: minecraft-server
+    version: "0.1.0"
+    repository: "file://../../lib/minecraft-server"
