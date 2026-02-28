@@ -1,0 +1,20 @@
+{{- if .Values.persistence.existingVolume }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Values.persistence.existingVolume }}
+  labels:
+    {{- include "minecraft-server.labels" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.persistence.size }}
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOncePod
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: longhorn
+  csi:
+    driver: driver.longhorn.io
+    fsType: ext4
+    volumeHandle: {{ .Values.persistence.existingVolume }}
+{{- end }}
