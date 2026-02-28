@@ -18,14 +18,9 @@ if [ ! -f "$VARS_FILE" ]; then
 fi
 
 TRUENAS_HOST=$(yq '.truenas_postgres_host' "$VARS_FILE")
-PASSWORD=$(yq ".${OWNER}_postgres_password" "$VARS_FILE")
 
 if [ -z "$TRUENAS_HOST" ] || [ "$TRUENAS_HOST" = "null" ]; then
   echo "ERROR: truenas_postgres_host not set in vars.yaml"
-  exit 1
-fi
-if [ -z "$PASSWORD" ] || [ "$PASSWORD" = "null" ]; then
-  echo "ERROR: ${OWNER}_postgres_password not set in vars.yaml"
   exit 1
 fi
 
@@ -48,17 +43,23 @@ if ! pg_isready -h "$TRUENAS_HOST" -p 5432 -U postgres -q -t 5; then
 fi
 echo "TrueNAS PostgreSQL is reachable."
 
-# --- Create role (idempotent) ---
+# --- Import role with encrypted password from TrueNAS ---
 echo ""
-echo "Creating role '$OWNER' on CNPG cluster..."
+echo "Importing role '$OWNER' from TrueNAS..."
+ENCRYPTED_PASSWORD=$(psql -h "$TRUENAS_HOST" -p 5432 -U postgres -tAc \
+  "SELECT rolpassword FROM pg_authid WHERE rolname = '${OWNER}'")
+if [ -z "$ENCRYPTED_PASSWORD" ]; then
+  echo "ERROR: Role '$OWNER' not found on TrueNAS."
+  exit 1
+fi
 kubectl exec -i "$PRIMARY_POD" -n "$NAMESPACE" -c postgres -- \
   psql -U postgres -v ON_ERROR_STOP=1 <<SQL
 DO \$\$
 BEGIN
-  CREATE ROLE ${OWNER} WITH LOGIN PASSWORD '${PASSWORD}';
+  CREATE ROLE ${OWNER} WITH LOGIN PASSWORD '${ENCRYPTED_PASSWORD}';
   RAISE NOTICE 'Role created: ${OWNER}';
 EXCEPTION WHEN duplicate_object THEN
-  ALTER ROLE ${OWNER} WITH PASSWORD '${PASSWORD}';
+  ALTER ROLE ${OWNER} WITH PASSWORD '${ENCRYPTED_PASSWORD}';
   RAISE NOTICE 'Role already exists, password updated: ${OWNER}';
 END
 \$\$;
