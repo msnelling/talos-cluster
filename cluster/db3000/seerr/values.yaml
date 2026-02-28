@@ -12,6 +12,7 @@ seerr-chart:
   config:
     persistence:
       size: 1Gi
+      storageClass: longhorn
       volumeName: db3000-jellyseerr-config
 
   route:
