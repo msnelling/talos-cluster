@@ -244,6 +244,7 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 | `transmission-vpn-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `transmission-proxy-credentials` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `gluetun-auth-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
+| `seerr-db-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `gitea-admin-secret` | gitea | `task components:gitea-secrets` (from vars.yaml) |
 | `gitea-config-secrets` | gitea | `task components:gitea-secrets` (from vars.yaml) |
 | `cnpg-s3-creds` | cnpg-cluster | `task components:cnpg-secrets` (from vars.yaml) |

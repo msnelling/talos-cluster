@@ -72,5 +72,5 @@ pgadmin_password: "your-pgadmin-password"
 # TrueNAS PostgreSQL (source for migration)
 truenas_postgres_host: "10.1.1.30"
 
-# Jellyseerr database
-jellyseerr_postgres_password: "your-jellyseerr-db-password"
+# Seerr database
+seerr_postgres_password: "your-seerr-db-password"
