@@ -31,4 +31,16 @@ spec:
   serviceSelector:
     matchLabels:
       app.kubernetes.io/part-of: cnpg-cluster
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: minecraft-pool
+spec:
+  blocks:
+    - start: 10.1.1.52
+      stop: 10.1.1.52
+  serviceSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: minecraft
 {{- end }}
