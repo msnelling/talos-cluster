@@ -1,5 +1,7 @@
 minecraft-server:
   port: 19133
+  persistence:
+    existingVolume: minecraft-server-mc2
   env:
     SERVER_NAME: Deddy
     GAMEMODE: creative
