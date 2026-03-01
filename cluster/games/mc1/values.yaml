@@ -1,5 +1,4 @@
 minecraft-server:
-  port: 19132
   persistence:
     existingVolume: minecraft-server-mc1
   env:

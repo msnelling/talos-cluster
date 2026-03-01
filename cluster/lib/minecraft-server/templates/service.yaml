@@ -11,11 +11,11 @@ spec:
   loadBalancerClass: io.cilium/l2-announcer
   ports:
     - name: bedrock
-      port: {{ .Values.port }}
+      port: {{ .Values.service.port }}
       targetPort: bedrock
       protocol: UDP
     - name: bedrock-tcp
-      port: {{ .Values.port }}
+      port: {{ .Values.service.port }}
       targetPort: bedrock-tcp
       protocol: TCP
   selector:

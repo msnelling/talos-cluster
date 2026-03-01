@@ -24,10 +24,10 @@ spec:
           stdin: true
           ports:
             - name: bedrock
-              containerPort: {{ .Values.port }}
+              containerPort: 19132
               protocol: UDP
             - name: bedrock-tcp
-              containerPort: {{ .Values.port }}
+              containerPort: 19132
               protocol: TCP
           envFrom:
             - configMapRef:
@@ -43,7 +43,7 @@ spec:
                 - --host
                 - "127.0.0.1"
                 - --port
-                - {{ .Values.port | quote }}
+                - "19132"
             initialDelaySeconds: 120
             periodSeconds: 30
             failureThreshold: 3

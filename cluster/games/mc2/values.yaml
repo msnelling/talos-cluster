@@ -1,5 +1,6 @@
 minecraft-server:
-  port: 19133
+  service:
+    port: 19133
   persistence:
     existingVolume: minecraft-server-mc2
   env:

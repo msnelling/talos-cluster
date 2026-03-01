@@ -3,7 +3,9 @@ image:
   tag: latest
   pullPolicy: Always
 
-port: 19132
+service:
+  port: 19132
+  sharingKey: minecraft-lb
 
 env:
   EULA: "true"
@@ -17,9 +19,6 @@ env:
 persistence:
   size: 2Gi
   existingVolume: ""
-
-service:
-  sharingKey: minecraft-lb
 
 resources:
   requests:
