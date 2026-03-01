@@ -115,6 +115,7 @@ tasks:
           PATCHES="$PATCHES --patch @patches/no-schedule.yaml"
         fi
         talosctl machineconfig patch "$SOURCE" $PATCHES --output generated/{{.NODE_NAME}}.yaml
+      - yq -i 'with(select(.kind == "HostnameConfig"); .hostname = "{{.NODE_NAME}}" | del(.auto))' generated/{{.NODE_NAME}}.yaml
 
   apply:
     desc: Apply config to all nodes (insecure, for first install)
