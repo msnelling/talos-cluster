@@ -25,4 +25,4 @@ media-app:
       memory: 2Gi
       gpu.intel.com/i915: "1"
   nodeSelector:
-    intel.feature.node.kubernetes.io/gpu: "true"
+    gpu.intel.com/device-id.0300-3e92.present: "true"

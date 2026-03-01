@@ -12,7 +12,7 @@ media-app:
     media:
       enabled: true
   nodeSelector:
-    intel.feature.node.kubernetes.io/gpu: "true"
+    gpu.intel.com/device-id.0300-3e92.present: "true"
   extraVolumes:
     - name: cache
       persistentVolumeClaim:
