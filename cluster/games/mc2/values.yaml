@@ -1,13 +1,6 @@
 minecraft-server:
   port: 19133
   env:
-    EULA: "true"
-    TZ: Europe/London
-    VERSION: LATEST
-    EMIT_SERVER_TELEMETRY: "true"
-    ENABLE_LAN_VISIBILITY: "true"
-    PACKAGE_BACKUP_KEEP: "2"
-    VIEW_DISTANCE: "32"
     SERVER_NAME: Deddy
     GAMEMODE: creative
     DIFFICULTY: easy
@@ -15,4 +8,3 @@ minecraft-server:
     LEVEL_TYPE: DEFAULT
     ALLOW_LIST: "true"
     ALLOW_LIST_USERS: "Deddy:2533274949710273,Luna:2535463308445170"
-    SERVER_PORT: "19133"

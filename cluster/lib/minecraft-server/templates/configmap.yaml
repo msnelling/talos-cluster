@@ -5,6 +5,7 @@ metadata:
   labels:
     {{- include "minecraft-server.labels" . | nindent 4 }}
 data:
+  SERVER_PORT: {{ .Values.port | quote }}
   {{- range $key, $val := .Values.env }}
   {{ $key }}: {{ $val | quote }}
   {{- end }}
