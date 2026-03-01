@@ -1,0 +1,5 @@
+apiVersion: v2
+name: minecraft-server
+description: Shared library chart for Minecraft Bedrock servers
+version: 0.1.0
+type: application

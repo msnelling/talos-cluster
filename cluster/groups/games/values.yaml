@@ -1,0 +1,16 @@
+repoURL: git@github.com:xmple/talos-cluster.git
+targetRevision: main
+project: cluster
+
+autoSync: true
+
+namespace:
+  name: minecraft
+
+apps:
+  - name: mc1
+    path: cluster/games/mc1
+  - name: mc2
+    path: cluster/games/mc2
+  - name: mc3
+    path: cluster/games/mc3

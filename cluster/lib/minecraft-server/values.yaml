@@ -1,0 +1,29 @@
+image:
+  repository: docker.io/itzg/minecraft-bedrock-server
+  tag: latest
+  pullPolicy: Always
+
+port: 19132
+
+env:
+  EULA: "true"
+  TZ: Europe/London
+  VERSION: LATEST
+  EMIT_SERVER_TELEMETRY: "true"
+  ENABLE_LAN_VISIBILITY: "true"
+  PACKAGE_BACKUP_KEEP: "2"
+  VIEW_DISTANCE: "32"
+
+persistence:
+  size: 2Gi
+  existingVolume: ""
+
+service:
+  sharingKey: minecraft-lb
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 1Gi
+  limits:
+    memory: 1Gi

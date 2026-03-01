@@ -1,0 +1,13 @@
+minecraft-server:
+  port: 19134
+  persistence:
+    existingVolume: minecraft-server-mc3
+  env:
+    SERVER_NAME: Deddy
+    GAMEMODE: survival
+    DIFFICULTY: easy
+    LEVEL_NAME: Survival World
+    LEVEL_TYPE: DEFAULT
+    OPS: "2533274949710273"
+    ALLOW_LIST: "true"
+    ALLOW_LIST_USERS: "Deddy:2533274949710273,Luna:2535463308445170"

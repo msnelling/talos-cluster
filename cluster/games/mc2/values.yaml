@@ -1,0 +1,12 @@
+minecraft-server:
+  port: 19133
+  persistence:
+    existingVolume: minecraft-server-mc2
+  env:
+    SERVER_NAME: Deddy
+    GAMEMODE: creative
+    DIFFICULTY: easy
+    LEVEL_NAME: My World 2
+    LEVEL_TYPE: DEFAULT
+    ALLOW_LIST: "true"
+    ALLOW_LIST_USERS: "Deddy:2533274949710273,Luna:2535463308445170"
