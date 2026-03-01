@@ -54,14 +54,6 @@ vars:
   VPN_PROXY_PASSWORD:
     sh: yq '.vpn_proxy_password' vars.yaml
   # Gitea
-  GITEA_POSTGRES_HOST:
-    sh: yq '.gitea_postgres_host' vars.yaml
-  GITEA_POSTGRES_DB:
-    sh: yq '.gitea_postgres_db' vars.yaml
-  GITEA_POSTGRES_USER:
-    sh: yq '.gitea_postgres_user' vars.yaml
-  GITEA_POSTGRES_PASSWORD:
-    sh: yq '.gitea_postgres_password' vars.yaml
   GITEA_ADMIN_USER:
     sh: yq '.gitea_admin_user' vars.yaml
   GITEA_ADMIN_PASSWORD:
@@ -91,9 +83,6 @@ vars:
     sh: yq '.cnpg_s3_access_key' vars.yaml
   CNPG_S3_SECRET_KEY:
     sh: yq '.cnpg_s3_secret_key' vars.yaml
-  # Seerr
-  SEERR_POSTGRES_PASSWORD:
-    sh: yq '.seerr_postgres_password' vars.yaml
   # pgAdmin
   PGADMIN_PASSWORD:
     sh: yq '.pgadmin_password' vars.yaml

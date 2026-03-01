@@ -42,10 +42,6 @@ vpn_proxy_password: "your-proxy-password"
 vpn_auth_config: "your-gluetun-auth-config-toml"
 
 # Gitea
-gitea_postgres_host: "truenas.local"
-gitea_postgres_db: "gitea"
-gitea_postgres_user: "gitea"
-gitea_postgres_password: "your-gitea-db-password"
 gitea_admin_user: "admin"
 gitea_admin_password: "your-gitea-admin-password"
 gitea_admin_email: "admin@example.com"
@@ -72,5 +68,3 @@ pgadmin_password: "your-pgadmin-password"
 # TrueNAS PostgreSQL (source for migration)
 truenas_postgres_host: "10.1.1.30"
 
-# Seerr database
-seerr_postgres_password: "your-seerr-db-password"
