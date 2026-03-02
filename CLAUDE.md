@@ -20,9 +20,11 @@ task setup    # Full cluster bootstrap for all nodes defined in vars.yaml
 task components:cilium           # Install/upgrade Cilium CNI (kube-system)
 task components:traefik          # Install/upgrade Traefik (traefik namespace)
 task components:cert-manager     # Install/upgrade cert-manager (cert-manager namespace)
-task components:longhorn-secret  # Create Longhorn namespace + S3 backup secret
+task components:longhorn-secret  # Create Longhorn S3 backup secret
 task components:argocd           # Install/upgrade ArgoCD (argocd namespace)
-task components:db3000-secrets   # Create db3000 namespace + media app secrets
+task components:db3000-secrets   # Create db3000 media app secrets
+task components:gitea-secrets    # Create Gitea admin + config secrets (gitea namespace)
+task components:cnpg-secrets     # Create CNPG S3 backup + pgAdmin credentials (cnpg-cluster namespace)
 task components:cnpg-role-secrets # Create CNPG managed role password secrets (idempotent)
 task components:renovate-secret  # Create Renovate GitHub App secret
 ```
@@ -75,7 +77,7 @@ task db:restore-verify  # Non-destructive DR test: restore to temp cluster, vali
 
 Tasks are split into domain-grouped files under `taskfiles/` with namespaced includes:
 - `taskfiles/setup.yaml` -- cluster provisioning (download, generate, patch, apply, bootstrap, kubeconfig)
-- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, argocd)
+- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, argocd, gitea-secrets, cnpg-secrets, cnpg-role-secrets, db3000-secrets, renovate-secret)
 - `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, join-node, reboot, reset)
 - `taskfiles/database.yaml` -- CNPG PostgreSQL operations (status, backup, restore, psql)
 - `taskfiles/utility.yaml` -- diagnostics (status, dashboard, disks, links)
@@ -107,7 +109,7 @@ Media apps under `cluster/apps/` use a shared library chart at `cluster/lib/medi
 
 ### ArgoCD GitOps Flow
 
-**App-of-apps pattern** organizes applications into groups. Group charts under `cluster/groups/<group>/` template Application CRs for their member apps. The argocd chart creates one parent Application per group (`app-networking`, `app-platform`, `app-services`, `app-db3000`).
+**App-of-apps pattern** organizes applications into groups. Group charts under `cluster/groups/<group>/` template Application CRs for their member apps. The argocd chart creates one parent Application per group (`app-networking`, `app-platform`, `app-services`, `app-data`, `app-db3000`, `app-games`).
 
 ```
 cluster/groups/<group>/
@@ -141,7 +143,7 @@ Client → DNS (*.xmple.io → 10.1.1.60) → Cilium LB-IPAM (L2 announcement)
 
 `vars.yaml` (git-ignored) holds cluster config: node list (name, IP, role, disk, interface), Talos/K8s versions, optional control plane VIP, and secrets. See `vars.yaml.example` for structure. Nodes default to `controlplane` role (mixed mode — runs both control plane and workloads). Set `role: worker` for dedicated worker nodes. Set `schedulable: false` on a control plane node to apply a `NoSchedule` taint, preventing workload pods from being scheduled on it. Defaults to `true`. Set `control_plane_vip` when using multiple control plane nodes. Helm chart versions are pinned in each app's `Chart.yaml`, not in `vars.yaml`.
 
-`factory.yaml` defines the custom Talos image with extensions (Tailscale, Intel microcode, iSCSI).
+`factory.yaml` defines the custom Talos image with extensions (Tailscale, Intel microcode, i915 GPU firmware, iSCSI, util-linux-tools).
 
 ## Working with ArgoCD
 
@@ -164,7 +166,7 @@ Client → DNS (*.xmple.io → 10.1.1.60) → Cilium LB-IPAM (L2 announcement)
 
 ### App Groups
 
-Apps are organized into groups via charts under `cluster/groups/` (networking, platform, services, db3000). Each group is an ArgoCD Application that renders child Application CRs.
+Apps are organized into groups via charts under `cluster/groups/` (networking, platform, services, data, db3000, games). Each group is an ArgoCD Application that renders child Application CRs.
 
 **Pause a group for maintenance:**
 1. Open group app (e.g., `app-db3000`) in ArgoCD UI
