@@ -217,6 +217,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **ArgoCD chart v9.x uses `global.domain` for SSO/OIDC.** The Dex issuer URL is derived from `global.domain`, not `configs.cm.url`. Without it, GitHub SSO fails silently with an empty OIDC issuer. The `server.insecure` flag only works under `configs.params`, not `server:`.
 
+**CNPG Cluster CRs require `ServerSideDiff=true,IncludeMutationWebhook=true`** on the ArgoCD Application (via `argocd.argoproj.io/compare-options` annotation). The CNPG operator's mutating webhook adds ~40 default fields to Cluster resources. Without `IncludeMutationWebhook=true`, ArgoCD's server-side diff excludes webhook mutations, causing perpetual OutOfSync. Note: `syncOptions` changes on child Applications are ignored by the parent group app (`ignoreDifferences` on `/spec/syncPolicy`), so use the annotation instead.
+
 **CNPG backups use the Barman Cloud Plugin (not deprecated in-tree barmanObjectStore).** Plugin runs as sidecar injected by barman-cloud-plugin chart in cnpg-system. Config lives in ObjectStore CR, referenced by Cluster via `spec.plugins`. Recovery manifests are generated dynamically by `db:restore` via `helm template` + `yq` — no static recovery templates to drift.
 
 **Before clearing the CNPG S3 WAL archive**, verify all instances are healthy (`kubectl get cluster cnpg-cluster -n cnpg-cluster`). A demoted primary with pending WAL uploads will become unrecoverable if the archive is wiped before it finishes archiving. Fix: delete the stuck instance's pod + PVC — the operator creates a replacement via `pg_basebackup` (new serial number, e.g., cnpg-cluster-4).
