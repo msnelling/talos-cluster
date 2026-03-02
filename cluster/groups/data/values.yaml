@@ -8,6 +8,7 @@ apps:
   - name: cnpg-cluster
     namespace: cnpg-cluster
     path: cluster/apps/cnpg-cluster
+    serverSideDiff: true
   - name: pgadmin
     namespace: cnpg-cluster
     path: cluster/apps/pgadmin
