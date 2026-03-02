@@ -149,7 +149,8 @@ tasks:
           --from-file=config.toml=/dev/stdin
           --dry-run=client -o yaml | kubectl apply -f -
       - |
-        cat <<'EOF' | kubectl apply -f -
+        SEERR_DB_PASS=$(kubectl get secret jellyseerr-role-password -n cnpg-cluster -o jsonpath='{.data.password}' | base64 -d)
+        cat <<EOF | kubectl apply -f -
         apiVersion: v1
         kind: Secret
         metadata:
@@ -161,7 +162,7 @@ tasks:
           DB_HOST: "cnpg-cluster-rw.cnpg-cluster.svc"
           DB_PORT: "5432"
           DB_USER: "jellyseerr"
-          DB_PASS: "{{.SEERR_POSTGRES_PASSWORD}}"
+          DB_PASS: "${SEERR_DB_PASS}"
           DB_NAME: "jellyseerr"
         EOF
 
@@ -182,7 +183,8 @@ tasks:
           email: "{{.GITEA_ADMIN_EMAIL}}"
         EOF
       - |
-        cat <<'EOF' | kubectl apply -f -
+        GITEA_DB_PASS=$(kubectl get secret gitea-role-password -n cnpg-cluster -o jsonpath='{.data.password}' | base64 -d)
+        cat <<EOF | kubectl apply -f -
         apiVersion: v1
         kind: Secret
         metadata:
@@ -191,10 +193,10 @@ tasks:
         type: Opaque
         stringData:
           database: |-
-            HOST={{.GITEA_POSTGRES_HOST}}
-            NAME={{.GITEA_POSTGRES_DB}}
-            USER={{.GITEA_POSTGRES_USER}}
-            PASSWD={{.GITEA_POSTGRES_PASSWORD}}
+            HOST=cnpg-cluster-rw.cnpg-cluster.svc
+            NAME=gitea
+            USER=gitea
+            PASSWD=${GITEA_DB_PASS}
           security: |-
             SECRET_KEY={{.GITEA_SECRET_KEY}}
           mailer: |-
@@ -231,6 +233,32 @@ tasks:
         stringData:
           password: "{{.PGADMIN_PASSWORD}}"
         EOF
+
+  cnpg-role-secrets:
+    desc: Create CNPG managed role password secrets (idempotent, generates random passwords)
+    vars:
+      ROLES: gitea authelia teslamate hass jellyseerr
+    cmds:
+      - |
+        for ROLE in {{.ROLES}}; do
+          if kubectl get secret "${ROLE}-role-password" -n cnpg-cluster >/dev/null 2>&1; then
+            echo "Secret ${ROLE}-role-password already exists, skipping"
+          else
+            PASSWORD=$(openssl rand -base64 32 | tr -d '=+/' | head -c 32)
+            cat <<EOF | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: ${ROLE}-role-password
+          namespace: cnpg-cluster
+        type: kubernetes.io/basic-auth
+        stringData:
+          username: "${ROLE}"
+          password: "${PASSWORD}"
+        EOF
+            echo "Created secret ${ROLE}-role-password"
+          fi
+        done
 
   renovate-secret:
     desc: Create Renovate GitHub App secret (namespace created by ArgoCD)

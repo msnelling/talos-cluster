@@ -22,7 +22,8 @@ task components:traefik          # Install/upgrade Traefik (traefik namespace)
 task components:cert-manager     # Install/upgrade cert-manager (cert-manager namespace)
 task components:longhorn-secret  # Create Longhorn namespace + S3 backup secret
 task components:argocd           # Install/upgrade ArgoCD (argocd namespace)
-task components:db3000-secrets  # Create db3000 namespace + media app secrets
+task components:db3000-secrets   # Create db3000 namespace + media app secrets
+task components:cnpg-role-secrets # Create CNPG managed role password secrets (idempotent)
 task components:renovate-secret  # Create Renovate GitHub App secret
 ```
 
@@ -244,9 +245,10 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 | `transmission-vpn-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `transmission-proxy-credentials` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `gluetun-auth-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
-| `seerr-db-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
+| `seerr-db-secrets` | db3000 | `task components:db3000-secrets` (reads password from `jellyseerr-role-password` in cnpg-cluster) |
 | `gitea-admin-secret` | gitea | `task components:gitea-secrets` (from vars.yaml) |
-| `gitea-config-secrets` | gitea | `task components:gitea-secrets` (from vars.yaml) |
+| `gitea-config-secrets` | gitea | `task components:gitea-secrets` (reads DB password from `gitea-role-password` in cnpg-cluster) |
+| `{role}-role-password` | cnpg-cluster | `task components:cnpg-role-secrets` (auto-generated, one per managed role) |
 | `cnpg-s3-creds` | cnpg-cluster | `task components:cnpg-secrets` (from vars.yaml) |
 | `pgadmin-credentials` | cnpg-cluster | `task components:cnpg-secrets` (from vars.yaml) |
 | `renovate-token` | renovate | `task components:renovate-secret` (from vars.yaml + `renovate-app-key.pem` file) |

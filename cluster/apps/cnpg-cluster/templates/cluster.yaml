@@ -28,6 +28,21 @@ spec:
   primaryUpdateMethod: switchover
   primaryUpdateStrategy: unsupervised
 
+  {{- with .Values.managedRoles }}
+  managed:
+    roles:
+      {{- range . }}
+      - name: {{ .name }}
+        ensure: present
+        login: true
+        {{- if .createdb }}
+        createdb: true
+        {{- end }}
+        passwordSecret:
+          name: {{ .name }}-role-password
+      {{- end }}
+  {{- end }}
+
   bootstrap:
     initdb:
       database: {{ .Values.initdb.database }}

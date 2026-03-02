@@ -17,8 +17,16 @@ affinity:
   topologyKey: kubernetes.io/hostname
 
 initdb:
-  database: gitea
-  owner: gitea
+  database: app
+  owner: app
+
+managedRoles:
+  - name: gitea
+    createdb: true
+  - name: authelia
+  - name: teslamate
+  - name: hass
+  - name: jellyseerr
 
 backup:
   endpointURL: "https://s3.xmple.io:9000"
