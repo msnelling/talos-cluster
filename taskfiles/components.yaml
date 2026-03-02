@@ -103,6 +103,7 @@ tasks:
 
   db3000-secrets:
     desc: Create secrets for db3000 media apps (namespace must exist first)
+    deps: [cnpg-role-secrets]
     cmds:
       - |
         cat <<'EOF' | kubectl apply -f -
@@ -168,6 +169,7 @@ tasks:
 
   gitea-secrets:
     desc: Create Gitea secrets (namespace created by ArgoCD)
+    deps: [cnpg-role-secrets]
     cmds:
       - |
         cat <<'EOF' | kubectl apply -f -
@@ -235,6 +237,7 @@ tasks:
         EOF
 
   cnpg-role-secrets:
+    internal: true
     desc: Create CNPG managed role password secrets (idempotent, generates random passwords)
     vars:
       ROLES: gitea authelia teslamate hass jellyseerr
