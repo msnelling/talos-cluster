@@ -25,7 +25,7 @@ task components:argocd           # Install/upgrade ArgoCD (argocd namespace)
 task components:db3000-secrets   # Create db3000 media app secrets
 task components:gitea-secrets    # Create Gitea admin + config secrets (gitea namespace)
 task components:cnpg-secrets     # Create CNPG S3 backup + pgAdmin credentials (cnpg-cluster namespace)
-task components:cnpg-role-secrets # Create CNPG managed role password secrets (idempotent)
+task components:cnpg-role-secrets # (internal) Create CNPG managed role password secrets — runs automatically as dep of db3000-secrets/gitea-secrets
 task components:renovate-secret  # Create Renovate GitHub App secret
 ```
 
@@ -77,7 +77,7 @@ task db:restore-verify  # Non-destructive DR test: restore to temp cluster, vali
 
 Tasks are split into domain-grouped files under `taskfiles/` with namespaced includes:
 - `taskfiles/setup.yaml` -- cluster provisioning (download, generate, patch, apply, bootstrap, kubeconfig)
-- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, argocd, gitea-secrets, cnpg-secrets, cnpg-role-secrets, db3000-secrets, renovate-secret)
+- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, argocd, gitea-secrets, cnpg-secrets, db3000-secrets, renovate-secret; cnpg-role-secrets is internal, runs as dep of gitea-secrets/db3000-secrets)
 - `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, join-node, reboot, reset)
 - `taskfiles/database.yaml` -- CNPG PostgreSQL operations (status, backup, restore, psql)
 - `taskfiles/utility.yaml` -- diagnostics (status, dashboard, disks, links)
@@ -223,7 +223,7 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **Before clearing the CNPG S3 WAL archive**, verify all instances are healthy (`kubectl get cluster cnpg-cluster -n cnpg-cluster`). A demoted primary with pending WAL uploads will become unrecoverable if the archive is wiped before it finishes archiving. Fix: delete the stuck instance's pod + PVC — the operator creates a replacement via `pg_basebackup` (new serial number, e.g., cnpg-cluster-4).
 
-**CNPG managed roles** (`spec.managed.roles` with `passwordSecret`) continuously reconcile passwords from Kubernetes secrets into PostgreSQL. App secret tasks (e.g., `gitea-secrets`) read the password from the role secret in cnpg-cluster namespace rather than vars.yaml.
+**CNPG managed roles** (`spec.managed.roles` with `passwordSecret`) continuously reconcile passwords from Kubernetes secrets into PostgreSQL. App secret tasks (`db3000-secrets`, `gitea-secrets`) read passwords from role secrets in cnpg-cluster namespace rather than vars.yaml. These tasks declare `cnpg-role-secrets` as a `dep:` so passwords are guaranteed to exist before being read. After any credential rotation (deleting and recreating a role secret), re-run the downstream secret tasks and restart the affected pods.
 
 **Longhorn's pre-delete hook (`longhorn-uninstall`) is destructive.** If a Longhorn Application is deleted with `resources-finalizer` and `pre-delete-finalizer`, ArgoCD will repeatedly run the uninstall job. Fix by removing finalizers from the Application (`kubectl patch application longhorn -n argocd --type=json -p='[{"op":"remove","path":"/metadata/finalizers"}]'`), then deleting the uninstall job.
 
@@ -258,7 +258,7 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 | `seerr-db-secrets` | db3000 | `task components:db3000-secrets` (reads password from `jellyseerr-role-password` in cnpg-cluster) |
 | `gitea-admin-secret` | gitea | `task components:gitea-secrets` (from vars.yaml) |
 | `gitea-config-secrets` | gitea | `task components:gitea-secrets` (reads DB password from `gitea-role-password` in cnpg-cluster) |
-| `{role}-role-password` | cnpg-cluster | `task components:cnpg-role-secrets` (auto-generated, one per managed role) |
+| `{role}-role-password` | cnpg-cluster | internal `cnpg-role-secrets` task (auto-generated, runs as dep of db3000-secrets/gitea-secrets) |
 | `cnpg-s3-creds` | cnpg-cluster | `task components:cnpg-secrets` (from vars.yaml) |
 | `pgadmin-credentials` | cnpg-cluster | `task components:cnpg-secrets` (from vars.yaml) |
 | `renovate-token` | renovate | `task components:renovate-secret` (from vars.yaml + `renovate-app-key.pem` file) |
