@@ -215,6 +215,10 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **CNPG backups use the Barman Cloud Plugin (not deprecated in-tree barmanObjectStore).** Plugin runs as sidecar injected by barman-cloud-plugin chart in cnpg-system. Config lives in ObjectStore CR, referenced by Cluster via `spec.plugins`. Recovery manifests are generated dynamically by `db:restore` via `helm template` + `yq` — no static recovery templates to drift.
 
+**Before clearing the CNPG S3 WAL archive**, verify all instances are healthy (`kubectl get cluster cnpg-cluster -n cnpg-cluster`). A demoted primary with pending WAL uploads will become unrecoverable if the archive is wiped before it finishes archiving. Fix: delete the stuck instance's pod + PVC — the operator creates a replacement via `pg_basebackup` (new serial number, e.g., cnpg-cluster-4).
+
+**CNPG managed roles** (`spec.managed.roles` with `passwordSecret`) continuously reconcile passwords from Kubernetes secrets into PostgreSQL. App secret tasks (e.g., `gitea-secrets`) read the password from the role secret in cnpg-cluster namespace rather than vars.yaml.
+
 **Longhorn's pre-delete hook (`longhorn-uninstall`) is destructive.** If a Longhorn Application is deleted with `resources-finalizer` and `pre-delete-finalizer`, ArgoCD will repeatedly run the uninstall job. Fix by removing finalizers from the Application (`kubectl patch application longhorn -n argocd --type=json -p='[{"op":"remove","path":"/metadata/finalizers"}]'`), then deleting the uninstall job.
 
 **Talos enforces `baseline` PodSecurity by default on all namespaces.** Components needing privileged access (Longhorn, etc.) require a namespace template with `pod-security.kubernetes.io/enforce: privileged` label.
