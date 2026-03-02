@@ -16,3 +16,7 @@ longhorn:
   defaultBackupStore:
     backupTarget: "s3://longhorn-backup@us-east-1/"
     backupTargetCredentialSecret: longhorn-s3-secret
+  persistence:
+    recurringJobSelector:
+      enable: true
+      jobList: '[{"name":"longhorn-backup","isGroup":true}]'

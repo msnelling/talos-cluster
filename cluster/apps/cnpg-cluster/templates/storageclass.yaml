@@ -7,6 +7,5 @@ parameters:
   numberOfReplicas: "1"
   staleReplicaTimeout: "30"
   dataLocality: "strict-local"
-  recurringJobSelector: '[]'
 reclaimPolicy: Retain
 volumeBindingMode: WaitForFirstConsumer

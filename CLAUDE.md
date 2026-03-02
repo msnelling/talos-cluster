@@ -207,6 +207,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **Longhorn v1.11.0 chart moved backup settings** from `defaultSettings.backupTarget` to `defaultBackupStore.backupTarget`. Always run `helm show values` to verify value paths when adding or upgrading charts.
 
+**Longhorn recurring backups use opt-in via the `longhorn-backup` group**, not the `default` group (which is a catch-all for unlabeled volumes). The default `longhorn` StorageClass includes this group via `persistence.recurringJobSelector`. The CNPG `longhorn-single-replica` StorageClass omits it, so CNPG volumes are naturally excluded. When adding new volumes that should be backed up, ensure they use the default `longhorn` StorageClass or manually label them with `recurring-job-group.longhorn.io/longhorn-backup=enabled`.
+
 **Longhorn on ArgoCD requires `preUpgradeChecker.jobEnabled: false`** — the pre-upgrade job uses Helm hooks which ArgoCD skips, causing sync failures.
 
 **ArgoCD repo-server needs relaxed probe timeouts** when managing many charts. `helm dependency build` can take 26s+, exceeding the default 1s liveness probe timeout and causing CrashLoopBackOff (exit 137). The wrapper chart overrides `repoServer.livenessProbe.timeoutSeconds` and `periodSeconds`.
