@@ -7,6 +7,6 @@ spec:
   cron: "0 2 * * *"
   task: backup
   groups:
-    - default
+    - longhorn-backup
   retain: 3
   concurrency: 1
