@@ -2,6 +2,10 @@ media-app:
   image:
     repository: ghcr.io/jellyfin/jellyfin
   containerPort: 8096
+  extraPorts:
+    - name: discovery
+      containerPort: 7359
+      protocol: UDP
   env:
     JELLYFIN_PublishedServerUrl: https://db3000.xmple.io/jellyfin
     JELLYFIN_hostwebclient: "true"
