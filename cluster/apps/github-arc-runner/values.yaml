@@ -8,13 +8,7 @@ gha-runner-scale-set:
   maxRunners: 5
 
   containerMode:
-    type: "kubernetes"
-    kubernetesModeWorkVolumeClaim:
-      accessModes: ["ReadWriteOnce"]
-      storageClassName: "longhorn-single-replica"
-      resources:
-        requests:
-          storage: 1Gi
+    type: "kubernetes-novolume"
 
   template:
     spec:
