@@ -1,0 +1,17 @@
+actions:
+  enabled: true
+  giteaRootURL: "http://gitea-http.gitea.svc.cluster.local:3000"
+  existingSecret: "runner-token"
+  existingSecretKey: "token"
+
+  statefulset:
+    replicas: 1
+    actRunner:
+      config: |
+        log:
+          level: info
+        cache:
+          enabled: false
+        container:
+          require_docker: true
+          docker_timeout: 300s
