@@ -5,7 +5,7 @@ gha-runner-scale-set:
   runnerScaleSetName: "github-arc-runner"
 
   minRunners: 1
-  maxRunners: 5
+  maxRunners: 3
 
   containerMode:
     type: "kubernetes"
