@@ -102,7 +102,7 @@ gha-runner-scale-set:
 
   controllerServiceAccount:
     namespace: arc-controller
-    name: arc-controller-gha-runner-scale-set-controller
+    name: arc-controller-gha-rs-controller
 ```
 
 **Step 3: Build and lint the chart**
