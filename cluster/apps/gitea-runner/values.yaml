@@ -4,6 +4,9 @@ actions:
   existingSecret: "runner-token"
   existingSecretKey: "token"
 
+  global:
+    storageClass: longhorn-single-replica
+
   statefulset:
     replicas: 1
     actRunner:
