@@ -12,3 +12,9 @@ apps:
     namespace: gitea-runner
     path: cluster/apps/gitea-runner
     serverSideDiff: true
+  - name: github-arc-controller
+    namespace: github-arc-controller
+    path: cluster/apps/github-arc-controller
+  - name: github-arc-runner
+    namespace: github-arc-runner
+    path: cluster/apps/github-arc-runner

@@ -80,6 +80,11 @@ vars:
   # Renovate
   RENOVATE_GITHUB_APP_ID:
     sh: yq '.renovate_github_app_id' vars.yaml
+  # GitHub Actions Runner (ARC)
+  GITHUB_APP_ID:
+    sh: yq '.github_app_id' vars.yaml
+  GITHUB_APP_INSTALLATION_ID:
+    sh: yq '.github_app_installation_id' vars.yaml
   # CNPG PostgreSQL
   CNPG_S3_ACCESS_KEY:
     sh: yq '.cnpg_s3_access_key' vars.yaml

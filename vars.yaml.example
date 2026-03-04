@@ -61,6 +61,10 @@ github_oauth_client_secret: "your-github-oauth-client-secret"
 # Renovate (GitHub App)
 renovate_github_app_id: "123456"
 
+# GitHub Actions Runner (ARC)
+github_app_id: "123456"
+github_app_installation_id: "12345678"
+
 # CloudNativePG
 cnpg_s3_access_key: "your-cnpg-s3-access-key"
 cnpg_s3_secret_key: "your-cnpg-s3-secret-key"
