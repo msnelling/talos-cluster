@@ -8,22 +8,18 @@ gha-runner-scale-set:
   maxRunners: 5
 
   containerMode:
-    type: "kubernetes-novolume"
+    type: "kubernetes"
+    kubernetesModeWorkVolumeClaim:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "longhorn-ephemeral"
+      resources:
+        requests:
+          storage: 10Gi
 
   template:
     spec:
       securityContext:
         fsGroup: 1001
-      volumes:
-        - name: work
-          emptyDir: {}
-      containers:
-        - name: runner
-          image: ghcr.io/actions/actions-runner:latest
-          command: ["/home/runner/run.sh"]
-          volumeMounts:
-            - name: work
-              mountPath: /home/runner/_work
 
   controllerServiceAccount:
     namespace: github-arc-controller
