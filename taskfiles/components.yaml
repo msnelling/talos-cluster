@@ -209,6 +209,21 @@ tasks:
             MINIO_SECRET_ACCESS_KEY={{.GITEA_MINIO_SECRET_KEY}}
         EOF
 
+  runner-token:
+    desc: Create Gitea runner registration token secret (namespace created by ArgoCD)
+    cmds:
+      - |
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: runner-token
+          namespace: gitea-runner
+        type: Opaque
+        stringData:
+          token: "{{.GITEA_RUNNER_TOKEN}}"
+        EOF
+
   cnpg-secrets:
     desc: Create CNPG S3 backup and pgAdmin secrets (namespace created by ArgoCD)
     cmds:
