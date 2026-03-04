@@ -11,3 +11,4 @@ apps:
   - name: gitea-runner
     namespace: gitea-runner
     path: cluster/apps/gitea-runner
+    serverSideDiff: true
