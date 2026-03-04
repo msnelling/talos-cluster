@@ -224,6 +224,21 @@ tasks:
           token: "{{.GITEA_RUNNER_TOKEN}}"
         EOF
 
+  github-runner-secret:
+    desc: Create GitHub App secret for ARC runners (namespace created by ArgoCD)
+    preconditions:
+      - sh: test -f github-app-key.pem
+        msg: |
+          github-app-key.pem not found. Download it from:
+            GitHub → Settings → Developer settings → GitHub Apps → your app → Generate a private key
+    cmds:
+      - kubectl create secret generic github-arc-app
+          --namespace github-arc-runner
+          --from-literal=github_app_id={{.GITHUB_APP_ID}}
+          --from-literal=github_app_installation_id={{.GITHUB_APP_INSTALLATION_ID}}
+          --from-file=github_app_private_key=github-app-key.pem
+          --dry-run=client -o yaml | kubectl apply -f -
+
   cnpg-secrets:
     desc: Create CNPG S3 backup and pgAdmin secrets (namespace created by ArgoCD)
     cmds:
