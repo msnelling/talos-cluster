@@ -51,6 +51,9 @@ gitea_minio_access_key: "your-minio-access-key"
 gitea_minio_secret_key: "your-minio-secret-key"
 gitea_secret_key: "your-gitea-secret-key"
 
+# Gitea Runner
+gitea_runner_token: ""  # Get from Gitea admin UI: /-/admin/actions/runners
+
 # ArgoCD GitHub OAuth
 github_oauth_client_id: "your-github-oauth-client-id"
 github_oauth_client_secret: "your-github-oauth-client-secret"

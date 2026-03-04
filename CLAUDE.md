@@ -27,6 +27,7 @@ task components:gitea-secrets    # Create Gitea admin + config secrets (gitea na
 task components:cnpg-secrets     # Create CNPG S3 backup + pgAdmin credentials (cnpg-cluster namespace)
 task components:cnpg-role-secrets # (internal) Create CNPG managed role password secrets — runs automatically as dep of db3000-secrets/gitea-secrets
 task components:renovate-secret  # Create Renovate GitHub App secret
+task components:runner-token     # Create Gitea runner registration token secret (gitea-runner namespace)
 ```
 
 Each Helm component task runs: `helm repo add` → `helm dependency build` → `helm upgrade --install` with `--force-conflicts` (required for Helm 4 SSA compatibility with ArgoCD).
@@ -262,5 +263,6 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 | `cnpg-s3-creds` | cnpg-cluster | `task components:cnpg-secrets` (from vars.yaml) |
 | `pgadmin-credentials` | cnpg-cluster | `task components:cnpg-secrets` (from vars.yaml) |
 | `renovate-token` | renovate | `task components:renovate-secret` (from vars.yaml + `renovate-app-key.pem` file) |
+| `runner-token` | gitea-runner | `task components:runner-token` (from vars.yaml `GITEA_RUNNER_TOKEN`) |
 
 Generate the deploy key with `ssh-keygen -t ed25519 -f argocd-repo-key -N ""` and add the public key as a read-only deploy key in GitHub repo settings.
