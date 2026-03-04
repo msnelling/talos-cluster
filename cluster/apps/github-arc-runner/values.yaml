@@ -1,8 +1,8 @@
 gha-runner-scale-set:
   githubConfigUrl: "https://github.com/sociaei"
-  githubConfigSecret: arc-github-app
+  githubConfigSecret: github-arc-app
 
-  runnerScaleSetName: "arc-runner"
+  runnerScaleSetName: "github-arc-runner"
 
   minRunners: 1
   maxRunners: 5
@@ -17,5 +17,5 @@ gha-runner-scale-set:
           storage: 1Gi
 
   controllerServiceAccount:
-    namespace: arc-controller
-    name: arc-controller-gha-rs-controller
+    namespace: github-arc-controller
+    name: github-arc-controller-gha-rs-controller
