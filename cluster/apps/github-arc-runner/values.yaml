@@ -14,6 +14,23 @@ gha-runner-scale-set:
     spec:
       securityContext:
         fsGroup: 1001
+      volumes: []
+      containers:
+        - name: runner
+          image: ghcr.io/actions/actions-runner:latest
+          command: ["/home/runner/run.sh"]
+          env:
+            - name: ACTIONS_RUNNER_CONTAINER_HOOKS
+              value: /home/runner/k8s-novolume/index.js
+            - name: ACTIONS_RUNNER_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ACTIONS_RUNNER_IMAGE
+              value: ghcr.io/actions/actions-runner:latest
+            - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
+              value: "true"
+          volumeMounts: []
 
   controllerServiceAccount:
     namespace: github-arc-controller
