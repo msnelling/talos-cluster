@@ -16,6 +16,11 @@ gha-runner-scale-set:
         requests:
           storage: 1Gi
 
+  template:
+    spec:
+      securityContext:
+        fsGroup: 1001
+
   controllerServiceAccount:
     namespace: github-arc-controller
     name: github-arc-controller-gha-rs-controller
