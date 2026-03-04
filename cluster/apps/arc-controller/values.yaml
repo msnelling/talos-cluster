@@ -1,0 +1,3 @@
+gha-runner-scale-set-controller:
+  flags:
+    logLevel: "info"
