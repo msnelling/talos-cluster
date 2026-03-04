@@ -11,9 +11,9 @@ Install GitHub Actions Runner Controller (ARC) to provide self-hosted runners fo
 
 Two wrapper Helm charts:
 
-1. **`arc-controller`** — Installs the ARC operator (once per cluster). Wraps `gha-runner-scale-set-controller` v0.13.1 from `oci://ghcr.io/actions/actions-runner-controller-charts`.
+1. **`github-arc-controller`** — Installs the ARC operator (once per cluster). Wraps `gha-runner-scale-set-controller` v0.13.1 from `oci://ghcr.io/actions/actions-runner-controller-charts`.
 
-2. **`arc-runner`** — Registers a runner scale set with `https://github.com/sociaei`. Wraps `gha-runner-scale-set` v0.13.1. Kubernetes container mode (ephemeral pods, no DinD). Scaling: 1 min / 5 max.
+2. **`github-arc-runner`** — Registers a runner scale set with `https://github.com/sociaei`. Wraps `gha-runner-scale-set` v0.13.1. Kubernetes container mode (ephemeral pods, no DinD). Scaling: 1 min / 5 max.
 
 Both charts use OCI dependencies from GHCR (public, no auth required to pull).
 
@@ -23,31 +23,41 @@ Both apps go in the **services** group (`cluster/groups/services/`) alongside `g
 
 ## Authentication
 
-GitHub App credentials stored in a `arc-github-app` secret in the `arc-runner` namespace. Created via a new `github-runner-secret` task in `taskfiles/components.yaml` using the heredoc-to-kubectl pattern.
+GitHub App credentials stored in a `github-arc-app` secret in the `github-arc-runner` namespace. Created via `task components:github-runner-secret`.
 
-Required inputs:
-- `GITHUB_APP_ID` — in `vars.yaml`
-- `GITHUB_APP_INSTALLATION_ID` — in `vars.yaml`
+### GitHub App Setup
+
+1. Create a GitHub App in your org: **GitHub → Settings → Developer settings → GitHub Apps → New GitHub App**
+2. Set the following permissions:
+   - **Organization permissions:** Self-hosted runners → Read and write
+   - **Repository permissions:** (none required for org-level runners)
+3. Install the app on the `sociaei` organization
+4. Note the **App ID** and **Installation ID** (visible on the app's settings page after installation)
+5. Generate a private key and save as `github-app-key.pem` in the repo root (git-ignored)
+
+### Required inputs
+- `github_app_id` — in `vars.yaml`
+- `github_app_installation_id` — in `vars.yaml`
 - `github-app-key.pem` — local file (git-ignored), GitHub App private key
 
 ## Workflow Usage
 
 ```yaml
-runs-on: arc-runner
+runs-on: github-arc-runner
 ```
 
 ## Components
 
 ```
-cluster/apps/arc-controller/
+cluster/apps/github-arc-controller/
   Chart.yaml          # depends on gha-runner-scale-set-controller 0.13.1
   values.yaml         # minimal operator config
 
-cluster/apps/arc-runner/
+cluster/apps/github-arc-runner/
   Chart.yaml          # depends on gha-runner-scale-set 0.13.1
   values.yaml         # githubConfigUrl, scaling, kubernetes mode
 
-cluster/groups/services/values.yaml  # add arc-controller + arc-runner entries
+cluster/groups/services/values.yaml  # add github-arc-controller + github-arc-runner entries
 ```
 
 ## Decisions
