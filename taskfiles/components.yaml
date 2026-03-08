@@ -50,6 +50,38 @@ tasks:
           --force-conflicts
           --wait --timeout 5m
 
+  monitoring-secrets:
+    desc: Create secrets for observability stack (monitoring namespace must exist first)
+    cmds:
+      - |
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: alertmanager-smtp
+          namespace: monitoring
+        type: Opaque
+        stringData:
+          host: "{{.SMTP_HOST}}"
+          port: "{{.SMTP_PORT}}"
+          username: "{{.SMTP_USERNAME}}"
+          password: "{{.SMTP_PASSWORD}}"
+          from: "{{.SMTP_FROM}}"
+          to: "{{.ALERT_EMAIL_TO}}"
+        EOF
+      - |
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: grafana-admin
+          namespace: monitoring
+        type: Opaque
+        stringData:
+          admin-user: admin
+          admin-password: "{{.GRAFANA_ADMIN_PASSWORD}}"
+        EOF
+
   longhorn-secret:
     desc: Create Longhorn S3 backup secret (namespace created by ArgoCD)
     cmds:

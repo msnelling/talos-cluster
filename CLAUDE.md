@@ -29,6 +29,7 @@ task components:cnpg-role-secrets # (internal) Create CNPG managed role password
 task components:renovate-secret  # Create Renovate GitHub App secret
 task components:runner-token     # Create Gitea runner registration token secret (gitea-runner namespace)
 task components:github-runner-secret  # Create GitHub App secret for ARC runners (github-arc-runner namespace)
+task components:monitoring-secrets    # Create SMTP and Grafana admin secrets (monitoring namespace)
 ```
 
 Each Helm component task runs: `helm repo add` → `helm dependency build` → `helm upgrade --install` with `--force-conflicts` (required for Helm 4 SSA compatibility with ArgoCD).
@@ -111,7 +112,7 @@ Media apps under `cluster/apps/` use a shared library chart at `cluster/lib/medi
 
 ### ArgoCD GitOps Flow
 
-**App-of-apps pattern** organizes applications into groups. Group charts under `cluster/groups/<group>/` template Application CRs for their member apps. The argocd chart creates one parent Application per group (`app-networking`, `app-platform`, `app-services`, `app-data`, `app-db3000`, `app-games`).
+**App-of-apps pattern** organizes applications into groups. Group charts under `cluster/groups/<group>/` template Application CRs for their member apps. The argocd chart creates one parent Application per group (`app-networking`, `app-platform`, `app-services`, `app-data`, `app-db3000`, `app-games`, `app-observability`).
 
 ```
 cluster/groups/<group>/
@@ -168,7 +169,7 @@ Client → DNS (*.xmple.io → 10.1.1.60) → Cilium LB-IPAM (L2 announcement)
 
 ### App Groups
 
-Apps are organized into groups via charts under `cluster/groups/` (networking, platform, services, data, db3000, games). Each group is an ArgoCD Application that renders child Application CRs.
+Apps are organized into groups via charts under `cluster/groups/` (networking, platform, services, data, db3000, games, observability). Each group is an ArgoCD Application that renders child Application CRs.
 
 **Pause a group for maintenance:**
 1. Open group app (e.g., `app-db3000`) in ArgoCD UI
@@ -178,6 +179,14 @@ Apps are organized into groups via charts under `cluster/groups/` (networking, p
 **Resume after maintenance:**
 1. Open group app → Parameters → remove `autoSync` override
 2. Click Sync
+
+### Observability
+
+Grafana is exposed at `grafana.xmple.io`. Prometheus, Alertmanager, and Loki are cluster-internal only.
+
+Talos kernel and service logs are forwarded via `machine.logging` (`patches/logging.yaml`) to the Alloy DaemonSet, which ships them to Loki. This ensures pre-crash kernel messages are preserved even if a node hard-locks.
+
+After deploying the observability stack, apply the logging patch with `task reconfigure` (requires node reboot for the patch to take effect).
 
 ## Helm Chart Versions
 
@@ -266,5 +275,7 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 | `renovate-token` | renovate | `task components:renovate-secret` (from vars.yaml + `renovate-app-key.pem` file) |
 | `runner-token` | gitea-runner | `task components:runner-token` (from vars.yaml `GITEA_RUNNER_TOKEN`) |
 | `github-arc-app` | github-arc-runner | `task components:github-runner-secret` (from vars.yaml + `github-app-key.pem` file) |
+| `alertmanager-smtp` | monitoring | `task components:monitoring-secrets` (from vars.yaml) |
+| `grafana-admin` | monitoring | `task components:monitoring-secrets` (from vars.yaml) |
 
 Generate the deploy key with `ssh-keygen -t ed25519 -f argocd-repo-key -N ""` and add the public key as a read-only deploy key in GitHub repo settings.

@@ -75,3 +75,12 @@ pgadmin_password: "your-pgadmin-password"
 # TrueNAS PostgreSQL (source for migration)
 truenas_postgres_host: "10.1.1.30"
 
+# Observability
+smtp_host: "smtp.example.com"
+smtp_port: "587"
+smtp_username: "your-smtp-username"
+smtp_password: "your-smtp-password"
+smtp_from: "alerts@example.com"
+alert_email_to: "you@example.com"
+grafana_admin_password: "your-grafana-password"
+

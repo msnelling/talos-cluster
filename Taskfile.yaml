@@ -90,6 +90,21 @@ vars:
     sh: yq '.cnpg_s3_access_key' vars.yaml
   CNPG_S3_SECRET_KEY:
     sh: yq '.cnpg_s3_secret_key' vars.yaml
+  # Observability
+  SMTP_HOST:
+    sh: yq '.smtp_host' vars.yaml
+  SMTP_PORT:
+    sh: yq '.smtp_port' vars.yaml
+  SMTP_USERNAME:
+    sh: yq '.smtp_username' vars.yaml
+  SMTP_PASSWORD:
+    sh: yq '.smtp_password' vars.yaml
+  SMTP_FROM:
+    sh: yq '.smtp_from' vars.yaml
+  ALERT_EMAIL_TO:
+    sh: yq '.alert_email_to' vars.yaml
+  GRAFANA_ADMIN_PASSWORD:
+    sh: yq '.grafana_admin_password' vars.yaml
   # pgAdmin
   PGADMIN_PASSWORD:
     sh: yq '.pgadmin_password' vars.yaml

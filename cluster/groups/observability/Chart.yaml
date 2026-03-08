@@ -1,0 +1,4 @@
+apiVersion: v2
+name: app-observability
+version: 0.1.0
+description: Observability app group (kube-prometheus-stack, loki, alloy)
