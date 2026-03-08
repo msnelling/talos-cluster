@@ -1,0 +1,5 @@
+machine:
+  logging:
+    destinations:
+      - endpoint: "udp://127.0.0.1:1514/"
+        format: "json_lines"
