@@ -5,7 +5,7 @@ alloy:
         // Receive Talos machine logs via syslog UDP
         loki.source.syslog "talos" {
           listener {
-            address = "0.0.0.0:1514"
+            address = "127.0.0.1:1514"
             protocol = "udp"
             label   = "talos_service"
           }
