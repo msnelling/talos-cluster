@@ -13,6 +13,8 @@ longhorn:
     concurrentReplicaRebuildPerNodeLimit: 2
     # Spread replicas across available nodes for better redundancy
     replicaAutoBalance: best-effort
+    # Force-delete pods stuck on a down node so volumes can reattach elsewhere
+    nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
   defaultBackupStore:
     backupTarget: "s3://longhorn-backup@us-east-1/"
     backupTargetCredentialSecret: longhorn-s3-secret
