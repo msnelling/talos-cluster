@@ -7,7 +7,7 @@ alloy:
           listener {
             address = "127.0.0.1:1514"
             protocol = "udp"
-            label   = "talos_service"
+            labels  = { source = "talos" }
           }
           forward_to = [loki.write.default.receiver]
         }
