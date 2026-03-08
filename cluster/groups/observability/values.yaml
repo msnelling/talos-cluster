@@ -1,0 +1,16 @@
+repoURL: git@github.com:xmple/talos-cluster.git
+targetRevision: main
+project: cluster
+
+autoSync: true
+
+apps:
+  - name: kube-prometheus-stack
+    namespace: monitoring
+    path: cluster/apps/kube-prometheus-stack
+  - name: loki
+    namespace: monitoring
+    path: cluster/apps/loki
+  - name: alloy
+    namespace: monitoring
+    path: cluster/apps/alloy
