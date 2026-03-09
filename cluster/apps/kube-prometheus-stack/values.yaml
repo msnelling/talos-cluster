@@ -23,6 +23,10 @@ kube-prometheus-stack:
                 storage: 5Gi
 
   grafana:
+    admin:
+      existingSecret: grafana-admin
+      userKey: admin-user
+      passwordKey: admin-password
     persistence:
       enabled: true
       size: 1Gi
