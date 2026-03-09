@@ -51,8 +51,9 @@ tasks:
           --wait --timeout 5m
 
   monitoring-secrets:
-    desc: Create secrets for observability stack (monitoring namespace must exist first)
+    desc: Create secrets for observability stack (creates namespace if needed)
     cmds:
+      - kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
       - |
         cat <<'EOF' | kubectl apply -f -
         apiVersion: v1
