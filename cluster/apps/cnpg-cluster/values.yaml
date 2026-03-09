@@ -28,6 +28,8 @@ managedRoles:
   - name: teslamate
   - name: hass
   - name: jellyseerr
+  - name: grafana
+    createdb: true
 
 backup:
   endpointURL: "https://s3.xmple.io:9000"
