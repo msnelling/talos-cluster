@@ -269,7 +269,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 | `seerr-db-secrets` | db3000 | `task components:db3000-secrets` (reads password from `jellyseerr-role-password` in cnpg-cluster) |
 | `gitea-admin-secret` | gitea | `task components:gitea-secrets` (from vars.yaml) |
 | `gitea-config-secrets` | gitea | `task components:gitea-secrets` (reads DB password from `gitea-role-password` in cnpg-cluster) |
-| `{role}-role-password` | cnpg-cluster | internal `cnpg-role-secrets` task (auto-generated, runs as dep of db3000-secrets/gitea-secrets) |
+| `{role}-role-password` | cnpg-cluster | internal `cnpg-role-secrets` task (auto-generated, runs as dep of db3000-secrets/gitea-secrets/monitoring-secrets) |
+| `grafana-db-secrets` | monitoring | `task components:monitoring-secrets` (reads password from `grafana-role-password` in cnpg-cluster) |
 | `cnpg-s3-creds` | cnpg-cluster | `task components:cnpg-secrets` (from vars.yaml) |
 | `pgadmin-credentials` | cnpg-cluster | `task components:cnpg-secrets` (from vars.yaml) |
 | `renovate-token` | renovate | `task components:renovate-secret` (from vars.yaml + `renovate-app-key.pem` file) |
