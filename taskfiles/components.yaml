@@ -52,6 +52,7 @@ tasks:
 
   monitoring-secrets:
     desc: Create secrets for observability stack (creates namespace if needed)
+    deps: [cnpg-role-secrets]
     cmds:
       - kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
       - |
@@ -81,6 +82,23 @@ tasks:
         stringData:
           admin-user: admin
           admin-password: "{{.GRAFANA_ADMIN_PASSWORD}}"
+        EOF
+      - |
+        GRAFANA_DB_PASS=$(kubectl get secret grafana-role-password -n cnpg-cluster -o jsonpath='{.data.password}' | base64 -d)
+        cat <<EOF | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: grafana-db-secrets
+          namespace: monitoring
+        type: Opaque
+        stringData:
+          GF_DATABASE_TYPE: "postgres"
+          GF_DATABASE_HOST: "cnpg-cluster-rw.cnpg-cluster.svc:5432"
+          GF_DATABASE_NAME: "grafana"
+          GF_DATABASE_USER: "grafana"
+          GF_DATABASE_PASSWORD: "${GRAFANA_DB_PASS}"
+          GF_DATABASE_SSL_MODE: "require"
         EOF
 
   longhorn-secret:
@@ -303,7 +321,7 @@ tasks:
     internal: true
     desc: Create CNPG managed role password secrets (idempotent, generates random passwords)
     vars:
-      ROLES: gitea authelia teslamate hass jellyseerr
+      ROLES: gitea authelia teslamate hass jellyseerr grafana
     cmds:
       - |
         for ROLE in {{.ROLES}}; do
