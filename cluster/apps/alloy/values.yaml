@@ -46,7 +46,7 @@ alloy:
         // Ship logs to Loki
         loki.write "default" {
           endpoint {
-            url = "http://loki-gateway.monitoring.svc:80/loki/api/v1/push"
+            url = "http://loki.monitoring.svc:3100/loki/api/v1/push"
           }
         }
 
