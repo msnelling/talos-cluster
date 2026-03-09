@@ -303,7 +303,7 @@ tasks:
     internal: true
     desc: Create CNPG managed role password secrets (idempotent, generates random passwords)
     vars:
-      ROLES: gitea authelia teslamate hass jellyseerr
+      ROLES: gitea authelia teslamate hass jellyseerr grafana
     cmds:
       - |
         for ROLE in {{.ROLES}}; do
