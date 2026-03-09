@@ -38,6 +38,10 @@ loki:
   test:
     enabled: false
 
+  # Gateway is unnecessary in SingleBinary mode — clients talk directly to Loki
+  gateway:
+    enabled: false
+
   # Disable memcached caches (not needed for SingleBinary with filesystem)
   chunksCache:
     enabled: false
