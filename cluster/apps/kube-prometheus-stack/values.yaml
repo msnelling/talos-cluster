@@ -21,6 +21,19 @@ kube-prometheus-stack:
             resources:
               requests:
                 storage: 5Gi
+      additionalScrapeConfigs:
+        - job_name: kube-etcd
+          kubernetes_sd_configs:
+            - role: node
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_node_label_node_role_kubernetes_io_control_plane]
+              action: keep
+            - source_labels: [__address__]
+              regex: (.+?)(?::\d+)?
+              target_label: __address__
+              replacement: $1:2381
+            - source_labels: [__meta_kubernetes_node_label_kubernetes_io_hostname]
+              target_label: instance
 
   grafana:
     admin:
@@ -39,14 +52,13 @@ kube-prometheus-stack:
         access: proxy
         isDefault: false
 
-  # etcd scraping — Talos exposes etcd metrics on port 2381
+  # etcd scraping — Talos exposes metrics on port 2381.
+  # kubeEtcd.enabled gates the etcd PrometheusRule alert rules, so we keep
+  # it enabled but disable its Service/ServiceMonitor (ArgoCD's default
+  # resource.exclusions skips Endpoints, breaking the ServiceMonitor).
+  # Actual scraping uses additionalScrapeConfigs with node SD for dynamic
+  # control-plane discovery — no hardcoded IPs.
   kubeEtcd:
     enabled: true
-    endpoints:
-      - 10.1.1.140
-      - 10.1.1.146
-      - 10.1.1.203
     service:
-      enabled: true
-      port: 2381
-      targetPort: 2381
+      enabled: false
