@@ -36,6 +36,9 @@ kube-prometheus-stack:
               target_label: instance
 
   grafana:
+    grafana.ini:
+      server:
+        root_url: https://grafana.xmple.io
     admin:
       existingSecret: grafana-admin
       userKey: admin-user
