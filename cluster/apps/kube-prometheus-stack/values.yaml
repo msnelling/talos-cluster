@@ -39,8 +39,6 @@ kube-prometheus-stack:
     grafana.ini:
       server:
         root_url: https://grafana.xmple.io
-      auth.github:
-        allow_sign_up: true
     admin:
       existingSecret: grafana-admin
       userKey: admin-user
