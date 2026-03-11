@@ -3,13 +3,21 @@ alloy:
     stabilityLevel: experimental
     configMap:
       content: |
+        // Node hostname for labeling Talos machine logs
+        local.file "hostname" {
+          filename = "/etc/hostname"
+        }
+
         // Receive Talos machine logs via raw UDP (json_lines format)
         loki.source.syslog "talos" {
           listener {
             address       = "127.0.0.1:1514"
             protocol      = "udp"
             syslog_format = "raw"
-            labels        = { source = "talos" }
+            labels        = {
+              source = "talos",
+              node   = trimspace(local.file.hostname.content),
+            }
           }
           forward_to = [loki.process.talos.receiver]
         }
