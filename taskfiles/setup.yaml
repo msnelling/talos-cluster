@@ -101,7 +101,7 @@ tasks:
         if [ "{{.NODE_ROLE}}" = "worker" ]; then
           SOURCE="generated/worker.yaml"
         fi
-        PATCHES="--patch @patches/cni.yaml --patch @patches/longhorn.yaml"
+        PATCHES="--patch @patches/cni.yaml --patch @patches/longhorn.yaml --patch @patches/logging.yaml"
         if [ "{{.NODE_ROLE}}" != "worker" ]; then
           PATCHES="--patch @patches/controlplane.yaml $PATCHES"
         fi
