@@ -1,15 +1,47 @@
 alloy:
   alloy:
+    stabilityLevel: experimental
     configMap:
       content: |
-        // Receive Talos machine logs via syslog UDP
+        // Receive Talos machine logs via raw UDP (json_lines format)
         loki.source.syslog "talos" {
           listener {
-            address = "127.0.0.1:1514"
-            protocol = "udp"
-            labels  = { source = "talos" }
+            address       = "127.0.0.1:1514"
+            protocol      = "udp"
+            syslog_format = "raw"
+            labels        = { source = "talos" }
           }
+          forward_to = [loki.process.talos.receiver]
+        }
+
+        // Parse Talos JSON log fields and extract labels
+        loki.process "talos" {
           forward_to = [loki.write.default.receiver]
+
+          stage.json {
+            expressions = {
+              msg           = "msg",
+              talos_level   = "\"talos-level\"",
+              talos_service = "\"talos-service\"",
+              talos_time    = "\"talos-time\"",
+            }
+          }
+
+          stage.timestamp {
+            source = "talos_time"
+            format = "2006-01-02T15:04:05.999999999Z07:00"
+          }
+
+          stage.labels {
+            values = {
+              level   = "talos_level",
+              service = "talos_service",
+            }
+          }
+
+          stage.output {
+            source = "msg"
+          }
         }
 
         // Discover and collect pod logs
