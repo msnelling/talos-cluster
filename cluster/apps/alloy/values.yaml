@@ -78,12 +78,50 @@ alloy:
           forward_to = [loki.write.default.receiver]
         }
 
+        // Receive syslog from external devices (RFC5424)
+        loki.source.syslog "external" {
+          listener {
+            address  = "0.0.0.0:1515"
+            protocol = "udp"
+            labels   = { source = "syslog" }
+          }
+          listener {
+            address  = "0.0.0.0:1515"
+            protocol = "tcp"
+            labels   = { source = "syslog" }
+          }
+          forward_to = [loki.process.external.receiver]
+        }
+
+        loki.process "external" {
+          forward_to = [loki.write.default.receiver]
+
+          stage.labels {
+            values = {
+              hostname = "__syslog_message_hostname",
+              appname  = "__syslog_message_app_name",
+              facility = "__syslog_message_facility",
+              severity = "__syslog_message_severity",
+            }
+          }
+        }
+
         // Ship logs to Loki
         loki.write "default" {
           endpoint {
             url = "http://loki.monitoring.svc:3100/loki/api/v1/push"
           }
         }
+
+    extraPorts:
+      - name: syslog-udp
+        port: 1515
+        targetPort: 1515
+        protocol: UDP
+      - name: syslog-tcp
+        port: 1515
+        targetPort: 1515
+        protocol: TCP
 
   controller:
     type: daemonset
