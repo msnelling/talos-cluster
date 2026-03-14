@@ -43,4 +43,16 @@ spec:
   serviceSelector:
     matchLabels:
       app.kubernetes.io/part-of: minecraft
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: monitoring-pool
+spec:
+  blocks:
+    - start: 10.1.1.63
+      stop: 10.1.1.63
+  serviceSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: monitoring
 {{- end }}
