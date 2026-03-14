@@ -79,47 +79,34 @@ alloy:
         }
 
         // Receive syslog from external devices (RFC3164 / BSD syslog)
-        loki.source.network "syslog_udp" {
-          address       = "0.0.0.0:1515"
-          protocol      = "udp"
-          frame_format  = "newline_delimited"
-          forward_to    = [loki.process.external.receiver]
-        }
-
-        loki.source.network "syslog_tcp" {
-          address       = "0.0.0.0:1515"
-          protocol      = "tcp"
-          frame_format  = "newline_delimited"
-          forward_to    = [loki.process.external.receiver]
+        loki.source.syslog "external" {
+          listener {
+            address       = "0.0.0.0:1515"
+            protocol      = "udp"
+            syslog_format = "rfc3164"
+            labels        = { source = "syslog" }
+            rfc3164_default_to_current_year = true
+          }
+          listener {
+            address       = "0.0.0.0:1515"
+            protocol      = "tcp"
+            syslog_format = "rfc3164"
+            labels        = { source = "syslog" }
+            rfc3164_default_to_current_year = true
+          }
+          forward_to = [loki.process.external.receiver]
         }
 
         loki.process "external" {
           forward_to = [loki.write.default.receiver]
 
-          stage.static_labels {
-            values = {
-              source = "syslog",
-            }
-          }
-
-          stage.regex {
-            expression = "^<(?P<priority>\\d+)>(?P<timestamp>\\w+ +\\d+ \\d+:\\d+:\\d+) (?P<hostname>\\S+) (?P<appname>\\S+?)(?:\\[(?P<pid>\\d+)\\])?: (?P<message>.*)$"
-          }
-
           stage.labels {
             values = {
-              hostname = "",
-              appname  = "",
+              hostname = "__syslog_message_hostname",
+              appname  = "__syslog_message_app_name",
+              facility = "__syslog_message_facility",
+              severity = "__syslog_message_severity",
             }
-          }
-
-          stage.timestamp {
-            source = "timestamp"
-            format = "Jan  2 15:04:05"
-          }
-
-          stage.output {
-            source = "message"
           }
         }
 
