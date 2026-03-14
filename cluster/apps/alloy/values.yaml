@@ -78,21 +78,20 @@ alloy:
           forward_to = [loki.write.default.receiver]
         }
 
-        // Receive syslog from external devices (RFC3164 / BSD syslog)
+        // Receive syslog from external devices (APC NMC2 non-standard format)
+        // UPS sends: <11>03/14/2026 17:35:05 apcB77CE6 APC: Test Syslog
         loki.source.syslog "external" {
           listener {
             address       = "0.0.0.0:1515"
             protocol      = "udp"
-            syslog_format = "rfc3164"
+            syslog_format = "raw"
             labels        = { source = "syslog" }
-            rfc3164_default_to_current_year = true
           }
           listener {
             address       = "0.0.0.0:1515"
             protocol      = "tcp"
-            syslog_format = "rfc3164"
+            syslog_format = "raw"
             labels        = { source = "syslog" }
-            rfc3164_default_to_current_year = true
           }
           forward_to = [loki.process.external.receiver]
         }
@@ -100,13 +99,23 @@ alloy:
         loki.process "external" {
           forward_to = [loki.write.default.receiver]
 
+          stage.regex {
+            expression = "^<\\d+>(?P<timestamp>\\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}:\\d{2}) (?P<hostname>\\S+) (?P<message>.+)$"
+          }
+
           stage.labels {
             values = {
-              hostname = "__syslog_message_hostname",
-              appname  = "__syslog_message_app_name",
-              facility = "__syslog_message_facility",
-              severity = "__syslog_message_severity",
+              hostname = "",
             }
+          }
+
+          stage.timestamp {
+            source = "timestamp"
+            format = "01/02/2006 15:04:05"
+          }
+
+          stage.output {
+            source = "message"
           }
         }
 
