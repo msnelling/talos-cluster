@@ -78,25 +78,51 @@ alloy:
           forward_to = [loki.write.default.receiver]
         }
 
-        // Receive syslog from external devices (APC NMC2 non-standard format)
-        // UPS sends: <11>03/14/2026 17:35:05 apcB77CE6 APC: Test Syslog
-        loki.source.syslog "external" {
+        // Standard syslog receiver (RFC3164) — port 1515, exposed as 514
+        loki.source.syslog "syslog" {
           listener {
             address       = "0.0.0.0:1515"
             protocol      = "udp"
-            syslog_format = "raw"
+            syslog_format = "rfc3164"
             labels        = { source = "syslog" }
+            rfc3164_default_to_current_year = true
           }
           listener {
             address       = "0.0.0.0:1515"
             protocol      = "tcp"
+            syslog_format = "rfc3164"
+            labels        = { source = "syslog" }
+            rfc3164_default_to_current_year = true
+          }
+          forward_to = [loki.process.syslog.receiver]
+        }
+
+        loki.process "syslog" {
+          forward_to = [loki.write.default.receiver]
+
+          stage.labels {
+            values = {
+              hostname = "__syslog_message_hostname",
+              appname  = "__syslog_message_app_name",
+              facility = "__syslog_message_facility",
+              severity = "__syslog_message_severity",
+            }
+          }
+        }
+
+        // APC UPS syslog receiver (non-standard format) — port 1516, exposed as 10514
+        // UPS sends: <11>03/14/2026 17:35:05 apcB77CE6 APC: Test Syslog
+        loki.source.syslog "apc" {
+          listener {
+            address       = "0.0.0.0:1516"
+            protocol      = "udp"
             syslog_format = "raw"
             labels        = { source = "syslog" }
           }
-          forward_to = [loki.process.external.receiver]
+          forward_to = [loki.process.apc.receiver]
         }
 
-        loki.process "external" {
+        loki.process "apc" {
           forward_to = [loki.write.default.receiver]
 
           stage.regex {
@@ -135,6 +161,10 @@ alloy:
         port: 1515
         targetPort: 1515
         protocol: TCP
+      - name: apc-syslog
+        port: 1516
+        targetPort: 1516
+        protocol: UDP
 
   controller:
     type: daemonset

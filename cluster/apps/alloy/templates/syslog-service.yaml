@@ -17,5 +17,9 @@ spec:
       port: 514
       targetPort: 1515
       protocol: TCP
+    - name: apc-syslog
+      port: 10514
+      targetPort: 1516
+      protocol: UDP
   selector:
     app.kubernetes.io/name: alloy
