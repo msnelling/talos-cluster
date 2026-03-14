@@ -21,8 +21,5 @@ traefik:
     replicas: 2
 
   service:
-    annotations:
-      lbipam.cilium.io/sharing-key: default
-      lbipam.cilium.io/ips: "10.1.1.60"
     spec:
       loadBalancerClass: io.cilium/l2-announcer

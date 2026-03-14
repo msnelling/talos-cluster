@@ -3,9 +3,8 @@ kind: Service
 metadata:
   name: alloy-syslog
   namespace: monitoring
-  annotations:
-    lbipam.cilium.io/sharing-key: default
-    lbipam.cilium.io/ips: "10.1.1.60"
+  labels:
+    app.kubernetes.io/part-of: monitoring
 spec:
   type: LoadBalancer
   loadBalancerClass: io.cilium/l2-announcer
