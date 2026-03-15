@@ -20,7 +20,7 @@ kube-prometheus-stack:
             accessModes: ["ReadWriteOnce"]
             resources:
               requests:
-                storage: 5Gi
+                storage: 20Gi
       additionalScrapeConfigs:
         - job_name: kube-etcd
           kubernetes_sd_configs:
