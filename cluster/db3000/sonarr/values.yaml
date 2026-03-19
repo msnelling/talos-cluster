@@ -1,7 +1,7 @@
 media-app:
   image:
     repository: ghcr.io/linuxserver/sonarr
-    tag: "4.0.16"
+    tag: "4.0.17"
   containerPort: 8989
   env:
     TZ: Europe/London
