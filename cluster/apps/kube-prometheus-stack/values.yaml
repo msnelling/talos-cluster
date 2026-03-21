@@ -38,6 +38,10 @@ kube-prometheus-stack:
 
   grafana:
     grafana.ini:
+      analytics:
+        reporting_enabled: false
+        check_for_updates: false
+        check_for_plugin_updates: false
       server:
         root_url: https://grafana.xmple.io
     admin:
