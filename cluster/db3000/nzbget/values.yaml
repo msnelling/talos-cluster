@@ -1,7 +1,7 @@
 media-app:
   image:
     repository: ghcr.io/nzbgetcom/nzbget
-    tag: "v26.0"
+    tag: "v26.1"
   containerPort: 6789
   env:
     TZ: Europe/London
