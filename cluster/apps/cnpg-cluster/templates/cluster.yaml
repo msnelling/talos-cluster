@@ -48,6 +48,11 @@ spec:
       database: {{ .Values.initdb.database }}
       owner: {{ .Values.initdb.owner }}
 
+  {{- with .Values.postgresql }}
+  postgresql:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
   plugins:
     - name: barman-cloud.cloudnative-pg.io
       enabled: true

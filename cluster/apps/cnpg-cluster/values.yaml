@@ -45,3 +45,10 @@ backup:
 
 scheduledBackup:
   schedule: "0 0 0 * * *"
+
+postgresql:
+  parameters:
+    # Invalidate replication slots that retain more than this much WAL.
+    # Prevents a stuck replica slot from filling the 10Gi volume, which
+    # took the primary offline on 2026-04-24.
+    max_slot_wal_keep_size: "4GB"
