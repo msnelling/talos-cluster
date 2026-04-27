@@ -46,11 +46,23 @@ tasks:
           TARGET_NODES: "{{.CLI_ARGS}}"
           ACTION_VERB: "Upgrading Talos on"
           ACTION_PAST: "upgrade"
-          CMD_TEMPLATE: >-
-            talosctl upgrade
-            --context {{.CLUSTER_NAME}}
-            --nodes "$NODE_IP"
-            --image "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"
+          # \$ escapes survive the runner's outer eval; $NODE / $NODE_IP are
+          # outer-expanded loop vars. Forfeiting leadership before upgrading
+          # the leader sidesteps Talos's in-pre-flight transfer, which can
+          # hang when the leader is older than the target version.
+          CMD_TEMPLATE: |
+            IDS=\$(talosctl --context {{.CLUSTER_NAME}} -n "$NODE_IP" etcd status 2>/dev/null | tail -n +2 | grep -oE '[0-9a-f]{16}' || true)
+            MEMBER_ID=\$(echo "\$IDS" | sed -n '1p')
+            LEADER_ID=\$(echo "\$IDS" | sed -n '2p')
+            if [ -n "\$MEMBER_ID" ] && [ "\$MEMBER_ID" = "\$LEADER_ID" ]; then
+              echo "$NODE is etcd leader, forfeiting before upgrade"
+              talosctl --context {{.CLUSTER_NAME}} -n "$NODE_IP" etcd forfeit-leadership
+              sleep 5
+            fi
+            talosctl upgrade \
+              --context {{.CLUSTER_NAME}} \
+              --nodes "$NODE_IP" \
+              --image "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"
 
   upgrade-k8s:
     desc: Upgrade Kubernetes version (cluster-wide)
