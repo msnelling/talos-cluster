@@ -4,6 +4,9 @@ cilium:
 
   kubeProxyReplacement: true
 
+  bpf:
+    masquerade: true
+
   gatewayAPI:
     enabled: false
 
