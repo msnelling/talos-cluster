@@ -163,7 +163,13 @@ Client → DNS (*.xmple.io → 10.1.1.60) → Cilium LB-IPAM (L2 announcement)
 
 **Replacing resource generators (ApplicationSets, app-of-apps charts):** Always delete the old generator from the cluster before removing its discovery sources from git. If you remove discovery files (e.g., config.json) while the old generator is still running, it will interpret "zero sources" as "delete all generated resources" and cascade-delete everything it manages — including CNI, ingress, and storage.
 
-**After reinstalling Cilium**, restart pods in other namespaces — they get stale network identities causing "operation not permitted" TCP errors: `kubectl rollout restart deployment -n argocd`
+**After reinstalling Cilium**, restart pods in other namespaces — they get stale network identities causing "operation not permitted" TCP errors. Do this **drain-aware, one node at a time** for namespaces with attached storage; an uncontrolled `instance-manager` restart on a node holding Longhorn volumes will tear down iSCSI sessions, abort EXT4 journals on the host, and crash the node (see `docs/plans/2026-04-27-cilium-iscsi-cascade-postmortem.md`). Order:
+1. `kubectl rollout restart deployment -n argocd` (no attached storage — safe immediately)
+2. For each node N in turn:
+   - `kubectl cordon N && kubectl drain N --ignore-daemonsets --delete-emptydir-data --force`
+   - `kubectl delete pod -n longhorn-system -l app=longhorn-manager --field-selector spec.nodeName=N`
+   - Wait until `kubectl get volumes.longhorn.io -A` shows no `attached`/`unknown` instances on N
+   - `kubectl uncordon N`
 
 **To reinstall cert-manager**, delete both stale webhook configurations first (`kubectl delete validatingwebhookconfiguration cert-manager-webhook && kubectl delete mutatingwebhookconfiguration cert-manager-webhook`), then wait ~15s after install for cainjector to populate CA bundles before retrying.
 
