@@ -19,6 +19,9 @@ longhorn:
     backupTarget: "s3://longhorn-backup@us-east-1/"
     backupTargetCredentialSecret: longhorn-s3-secret
   persistence:
+    # Align the default `longhorn` StorageClass with defaultReplicaCount above.
+    # The chart defaults this to 3, which silently overrides the cluster setting for new PVCs.
+    defaultClassReplicaCount: 2
     recurringJobSelector:
       enable: true
       jobList: '[{"name":"longhorn-backup","isGroup":true}]'
