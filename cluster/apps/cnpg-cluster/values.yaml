@@ -15,6 +15,11 @@ resources:
 
 affinity:
   enablePodAntiAffinity: true
+  # "required" hard-enforces one instance pod per node. With a single-replica
+  # storage class, two instances drifting onto one node is a SPOF, and the
+  # default "preferred" lets that happen on reboots/upgrades. Pairs with the
+  # storage class's dataLocality: best-effort so the replica follows the pod.
+  podAntiAffinityType: required
   topologyKey: kubernetes.io/hostname
 
 initdb:
