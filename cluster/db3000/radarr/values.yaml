@@ -1,7 +1,7 @@
 media-app:
   image:
     repository: ghcr.io/linuxserver/radarr
-    tag: "6.1.1"
+    tag: "6.2.1"
   containerPort: 7878
   env:
     TZ: Europe/London
