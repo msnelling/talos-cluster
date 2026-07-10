@@ -15,6 +15,12 @@ longhorn:
     replicaAutoBalance: best-effort
     # Force-delete pods stuck on a down node so volumes can reattach elsewhere
     nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
+    # Release the instance-manager PDB immediately when a node is cordoned so
+    # Talos node drains (talosctl upgrade) complete unattended. Single-replica
+    # volumes (CNPG, gitea-runner) keep their on-disk data across the kexec
+    # reboot; we rely on CNPG streaming replicas + S3 backups, not Longhorn
+    # eviction. Trade-off: no safety net if a node is permanently lost mid-drain.
+    nodeDrainPolicy: always-allow
   defaultBackupStore:
     backupTarget: "s3://longhorn-backup@us-east-1/"
     backupTargetCredentialSecret: longhorn-s3-secret
