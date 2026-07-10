@@ -5,11 +5,20 @@ tasks:
   _run-on-nodes:
     internal: true
     # Reusable node loop: iterates nodes, runs a command, tracks failures.
+    # CMD_TEMPLATE / POST_NODE_CMD are passed via environment and executed with
+    # `sh -c` so they use normal shell quoting ($NODE and $NODE_IP are exported).
+    # Do NOT inline them with eval — quotes inside an eval'd template get
+    # consumed by the outer parse and silently break comparisons and jq filters.
     # Required vars:
     #   ACTION_VERB  - present participle for logging (e.g., "Upgrading Talos on")
     #   ACTION_PAST  - past tense for failure summary (e.g., "upgrade")
-    #   CMD_TEMPLATE - shell command to run per node ($NODE and $NODE_IP are available)
+    #   CMD_TEMPLATE - shell command to run per node
     #   TARGET_NODES - space-separated node names (defaults to all nodes)
+    #   POST_NODE_CMD - optional health gate run after each node succeeds
+    #                   (defaults to `true`)
+    env:
+      NODE_CMD: "{{.CMD_TEMPLATE}}"
+      POST_CMD: "{{.POST_NODE_CMD | default \"true\"}}"
     cmds:
       - |
         if [ -n "{{.TARGET_NODES}}" ]; then
@@ -20,9 +29,14 @@ tasks:
         FAILED=""
         for NODE in $NODES; do
           NODE_IP=$(yq ".nodes[] | select(.name == \"$NODE\") | .ip" vars.yaml)
+          export NODE NODE_IP
           echo "{{.ACTION_VERB}} $NODE ($NODE_IP)..."
-          if eval "{{.CMD_TEMPLATE}}"; then
+          if sh -c "$NODE_CMD"; then
             echo "$NODE: OK"
+            if ! sh -c "$POST_CMD"; then
+              echo "WARNING: post-{{.ACTION_PAST}} health check failed for $NODE, continuing..."
+              FAILED="$FAILED $NODE"
+            fi
           else
             echo "WARNING: Failed to {{.ACTION_PAST}} $NODE, continuing..."
             FAILED="$FAILED $NODE"
@@ -41,20 +55,35 @@ tasks:
       SCHEMATIC_ID:
         sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
     cmds:
+      # Pre-flight: refuse to start while any Longhorn volume is degraded or
+      # faulted. Rebuild I/O during a drain is what collapses iSCSI sessions on
+      # the other nodes and cascades them NotReady (see
+      # docs/plans/2026-04-27-cilium-iscsi-cascade-postmortem.md and
+      # docs/plans/2026-07-10-cnpg-local-storage-design.md). Skips silently if
+      # the cluster is unreachable (fresh bootstrap has no Longhorn yet).
+      - |
+        DEGRADED=$(kubectl get volumes.longhorn.io -n longhorn-system -o json 2>/dev/null \
+          | jq -r '[.items[] | select(.status.robustness=="degraded" or .status.robustness=="faulted")] | length' 2>/dev/null)
+        if [ -n "$DEGRADED" ] && [ "$DEGRADED" != "0" ]; then
+          echo "ERROR: $DEGRADED Longhorn volume(s) degraded/faulted — wait for rebuilds to finish before upgrading:"
+          kubectl get volumes.longhorn.io -n longhorn-system -o json \
+            | jq -r '.items[] | select(.status.robustness=="degraded" or .status.robustness=="faulted") | "  " + .metadata.name'
+          exit 1
+        fi
       - task: _run-on-nodes
         vars:
           TARGET_NODES: "{{.CLI_ARGS}}"
           ACTION_VERB: "Upgrading Talos on"
           ACTION_PAST: "upgrade"
-          # \$ escapes survive the runner's outer eval; $NODE / $NODE_IP are
-          # outer-expanded loop vars. Forfeiting leadership before upgrading
-          # the leader sidesteps Talos's in-pre-flight transfer, which can
-          # hang when the leader is older than the target version.
+          # Runs via `sh -c` with $NODE / $NODE_IP exported (see _run-on-nodes).
+          # Forfeiting leadership before upgrading the leader sidesteps Talos's
+          # in-pre-flight transfer, which can hang when the leader is older
+          # than the target version.
           CMD_TEMPLATE: |
-            IDS=\$(talosctl --context {{.CLUSTER_NAME}} -n "$NODE_IP" etcd status 2>/dev/null | tail -n +2 | grep -oE '[0-9a-f]{16}' || true)
-            MEMBER_ID=\$(echo "\$IDS" | sed -n '1p')
-            LEADER_ID=\$(echo "\$IDS" | sed -n '2p')
-            if [ -n "\$MEMBER_ID" ] && [ "\$MEMBER_ID" = "\$LEADER_ID" ]; then
+            IDS=$(talosctl --context {{.CLUSTER_NAME}} -n "$NODE_IP" etcd status 2>/dev/null | tail -n +2 | grep -oE '[0-9a-f]{16}' || true)
+            MEMBER_ID=$(echo "$IDS" | sed -n '1p')
+            LEADER_ID=$(echo "$IDS" | sed -n '2p')
+            if [ -n "$MEMBER_ID" ] && [ "$MEMBER_ID" = "$LEADER_ID" ]; then
               echo "$NODE is etcd leader, forfeiting before upgrade"
               talosctl --context {{.CLUSTER_NAME}} -n "$NODE_IP" etcd forfeit-leadership
               sleep 5
@@ -63,6 +92,27 @@ tasks:
               --context {{.CLUSTER_NAME}} \
               --nodes "$NODE_IP" \
               --image "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"
+          # Gate on health before draining the next node: wait for this node to
+          # rejoin Ready and for every attached Longhorn volume to return to
+          # healthy. Fails the node (and the run) if volumes don't settle, so a
+          # rolling upgrade can never drain node N+1 while node N's replicas
+          # are still rebuilding.
+          POST_NODE_CMD: |
+            echo "Waiting for $NODE to become Ready..."
+            kubectl wait --for=condition=Ready "node/$NODE" --timeout=600s
+            echo "Waiting for Longhorn volumes to settle..."
+            for i in $(seq 1 90); do
+              UNHEALTHY=$(kubectl get volumes.longhorn.io -n longhorn-system -o json \
+                | jq -r '.items[] | select(.status.state=="attached" and .status.robustness!="healthy") | .metadata.name')
+              if [ -z "$UNHEALTHY" ]; then
+                echo "All attached volumes healthy"
+                exit 0
+              fi
+              echo "  waiting on: $(echo $UNHEALTHY | tr '\n' ' ')"
+              sleep 10
+            done
+            echo "ERROR: volumes still unhealthy after 15m"
+            exit 1
 
   upgrade-k8s:
     desc: Upgrade Kubernetes version (cluster-wide)

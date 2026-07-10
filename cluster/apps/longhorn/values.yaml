@@ -9,12 +9,22 @@ longhorn:
     defaultReplicaCount: 2
     # Cap snapshots per volume to limit CRD object growth in etcd
     snapshotMaxCount: 20
-    # Limit concurrent replica rebuilds to reduce burst etcd writes during recovery
-    concurrentReplicaRebuildPerNodeLimit: 2
+    # Serialize replica rebuilds. Post-reboot rebuild storms saturate node I/O,
+    # collapse iSCSI sessions on the *other* nodes, and cascade them NotReady —
+    # this happened three times on 2026-07-10 (see
+    # docs/plans/2026-07-10-cnpg-local-storage-design.md). One rebuild per node
+    # keeps recovery I/O below the level that starves etcd fsync and iSCSI.
+    concurrentReplicaRebuildPerNodeLimit: 1
     # Spread replicas across available nodes for better redundancy
     replicaAutoBalance: best-effort
     # Force-delete pods stuck on a down node so volumes can reattach elsewhere
     nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
+    # Release the instance-manager PDB immediately when a node is cordoned so
+    # Talos node drains (talosctl upgrade) complete unattended. Single-replica
+    # volumes (CNPG, gitea-runner) keep their on-disk data across the kexec
+    # reboot; we rely on CNPG streaming replicas + S3 backups, not Longhorn
+    # eviction. Trade-off: no safety net if a node is permanently lost mid-drain.
+    nodeDrainPolicy: always-allow
   defaultBackupStore:
     backupTarget: "s3://longhorn-backup@us-east-1/"
     backupTargetCredentialSecret: longhorn-s3-secret
