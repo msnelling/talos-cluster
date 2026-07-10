@@ -4,7 +4,11 @@ instances: 3
 
 storage:
   size: 10Gi
-  storageClass: longhorn-single-replica
+  # Node-local storage (OpenEBS localpv). CNPG's own streaming replication +
+  # barman/S3 are the HA/DR layers; Longhorn added no redundancy here (1 replica)
+  # and its iSCSI transport was the failure mode that wedged nodes under postgres
+  # write load. See docs/plans/2026-07-10-cnpg-local-storage-design.md.
+  storageClass: local-hostpath
 
 resources:
   requests:
@@ -15,10 +19,11 @@ resources:
 
 affinity:
   enablePodAntiAffinity: true
-  # "required" hard-enforces one instance pod per node. With a single-replica
-  # storage class, two instances drifting onto one node is a SPOF, and the
-  # default "preferred" lets that happen on reboots/upgrades. Pairs with the
-  # storage class's dataLocality: best-effort so the replica follows the pod.
+  # "required" hard-enforces one instance pod per node. With node-local storage
+  # each instance's data is pinned to its node, so two instances drifting onto
+  # one node is a SPOF; the default "preferred" lets that happen on
+  # reboots/upgrades. The local-hostpath class's WaitForFirstConsumer binding
+  # then provisions each PV on the anti-affinity-chosen node.
   podAntiAffinityType: required
   topologyKey: kubernetes.io/hostname
 
