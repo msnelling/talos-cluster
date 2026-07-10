@@ -9,8 +9,12 @@ longhorn:
     defaultReplicaCount: 2
     # Cap snapshots per volume to limit CRD object growth in etcd
     snapshotMaxCount: 20
-    # Limit concurrent replica rebuilds to reduce burst etcd writes during recovery
-    concurrentReplicaRebuildPerNodeLimit: 2
+    # Serialize replica rebuilds. Post-reboot rebuild storms saturate node I/O,
+    # collapse iSCSI sessions on the *other* nodes, and cascade them NotReady —
+    # this happened three times on 2026-07-10 (see
+    # docs/plans/2026-07-10-cnpg-local-storage-design.md). One rebuild per node
+    # keeps recovery I/O below the level that starves etcd fsync and iSCSI.
+    concurrentReplicaRebuildPerNodeLimit: 1
     # Spread replicas across available nodes for better redundancy
     replicaAutoBalance: best-effort
     # Force-delete pods stuck on a down node so volumes can reattach elsewhere
