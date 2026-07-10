@@ -25,7 +25,7 @@ tasks:
           echo "{{.ACTION_VERB}} $NODE ($NODE_IP)..."
           if eval "{{.CMD_TEMPLATE}}"; then
             echo "$NODE: OK"
-            if ! eval "{{.POST_NODE_CMD | default \"true\"}}"; then
+            if ! eval "{{.POST_NODE_CMD | default "true"}}"; then
               echo "WARNING: post-{{.ACTION_PAST}} health check failed for $NODE, continuing..."
               FAILED="$FAILED $NODE"
             fi
