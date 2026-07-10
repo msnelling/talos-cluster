@@ -1,0 +1,13 @@
+apiVersion: v2
+name: local-path-provisioner
+version: 0.1.0
+# Backed by OpenEBS Dynamic LocalPV (hostpath mode). Chosen over Rancher's
+# local-path-provisioner because OpenEBS publishes an official, first-party,
+# actively-maintained Helm repo; Rancher's chart is only available via
+# third-party community mirrors. Since this repo gitignores **/charts/ and
+# **/Chart.lock, ArgoCD's repo-server runs `helm dependency build` live on
+# every sync, making the upstream repo URL a permanent runtime dependency.
+dependencies:
+  - name: localpv-provisioner
+    version: "4.5.1"
+    repository: https://openebs.github.io/dynamic-localpv-provisioner

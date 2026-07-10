@@ -1,0 +1,21 @@
+# Values are scoped to the dependency alias (the chart name: localpv-provisioner).
+localpv-provisioner:
+  # Base path for provisioned hostpath volumes. Must live under /var — the only
+  # writable tree on Talos — and must exactly match the bind in
+  # patches/local-path-provisioner.yaml so the kubelet can serve the hostPath.
+  localpv:
+    basePath: /var/openebs/local
+
+  # StorageClass consumed by CNPG instance volumes (see the CNPG local-storage
+  # migration design doc). WaitForFirstConsumer is intrinsic to OpenEBS local
+  # hostpath (binds the PV on the node where the pod schedules); Retain keeps
+  # the on-disk data if the PVC is deleted.
+  hostpathClass:
+    name: local-hostpath
+    basePath: /var/openebs/local
+    reclaimPolicy: Retain
+    isDefaultClass: false
+
+  # Homelab: no phone-home telemetry.
+  analytics:
+    enabled: false
