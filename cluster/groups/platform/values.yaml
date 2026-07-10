@@ -11,6 +11,9 @@ apps:
   - name: longhorn
     namespace: longhorn-system
     path: cluster/apps/longhorn
+  - name: local-path-provisioner
+    namespace: local-path-storage
+    path: cluster/apps/local-path-provisioner
   - name: smb-csi
     namespace: smb-csi
     path: cluster/apps/smb-csi
