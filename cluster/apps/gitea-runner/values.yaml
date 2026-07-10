@@ -5,7 +5,10 @@ actions:
   existingSecretKey: "token"
 
   global:
-    storageClass: longhorn-single-replica
+    # Node-local storage — the runner's data (registration + build cache) is
+    # disposable and single-replica, so it never needed Longhorn's iSCSI hop.
+    # See docs/plans/2026-07-10-cnpg-local-storage-design.md (follow-ups).
+    storageClass: local-hostpath
 
   statefulset:
     replicas: 1
