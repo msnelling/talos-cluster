@@ -12,7 +12,11 @@ actions:
 
   statefulset:
     replicas: 1
-    actRunner:
+    runner:
+      # registry+repository restate chart defaults so Renovate tracks the image.
+      registry: docker.gitea.com
+      repository: runner
+      tag: "2.1.0"
       config: |
         log:
           level: info
