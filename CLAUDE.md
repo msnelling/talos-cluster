@@ -258,6 +258,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **Always validate charts locally before pushing:** `helm dependency build <chart> && helm lint <chart> && helm template test <chart> | kubeconform -strict -ignore-missing-schemas -summary`
 
+**CI gates every PR to `main`** (`.github/workflows/validate.yaml`, on changed files only): `yamllint -c .yamllint.yaml` (excludes `templates/`), `renovate-config-validator renovate.json`, and the Helm validation above. Run the relevant one locally before pushing — e.g. `npx --yes --package renovate -- renovate-config-validator renovate.json` after editing Renovate config.
+
 **Only override upstream defaults when necessary.** Run `helm show values <repo>/<chart> --version <ver>` to check defaults before adding values. Redundant overrides add maintenance burden and can drift from upstream.
 
 **Traefik chart enforces a values schema.** Always run `helm show values traefik/traefik --version <ver>` to verify value paths before adding new configuration. `helm lint` catches schema violations locally.
