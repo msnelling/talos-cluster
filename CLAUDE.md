@@ -198,6 +198,10 @@ After deploying the observability stack, apply the logging patch with `task reco
 
 **Never guess chart versions.** Always verify with `helm search repo <chart> --versions | head` or check the upstream GitHub releases page. Use `helm repo update` first if results seem stale.
 
+**`Chart.lock` and `charts/*.tgz` are gitignored** (`.gitignore`: `**/Chart.lock`, `**/charts/`). ArgoCD resolves dependencies from `Chart.yaml` at sync time, so a stale local `charts/*.tgz` makes `helm template` render the *old* subchart version — verify what's actually deployed with `kubectl`, not local render. To change a pinned dependency version, run `helm dependency update` (regenerates the lock from `Chart.yaml`); `helm dependency build` reuses the stale lock.
+
+**Renovate's helm-values manager only tracks an image when `repository` (and optional `registry`) sit beside `tag` in `values.yaml`.** When overriding a subchart's default image tag, restate `registry`/`repository` next to `tag` — a bare `tag:` is invisible to Renovate and the pin silently goes stale.
+
 ## Design Documents
 
 Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdown). Read the relevant design doc before modifying a component.
