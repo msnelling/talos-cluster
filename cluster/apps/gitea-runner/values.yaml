@@ -25,3 +25,11 @@ actions:
         container:
           require_docker: true
           docker_timeout: 300s
+    dind:
+      # registry+repository restate chart defaults so Renovate tracks the image.
+      # Pinned below 29.5.x: Docker 29.5.1's `docker cp` regression
+      # (mkdirat var/run: file exists) breaks act_runner's toolcache copy into
+      # the job container (see nektos/act#6092). 28-dind predates the regression.
+      registry: docker.io
+      repository: docker
+      tag: "28-dind"
