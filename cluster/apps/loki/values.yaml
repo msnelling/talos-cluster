@@ -19,6 +19,15 @@ loki:
     limits_config:
       retention_period: 168h  # 7 days
 
+    # retention_period above is inert on its own — the compactor is what applies
+    # it. Without retention_enabled, chunks accumulate until the PVC fills and
+    # Loki crashloops on "no space left on device". delete_request_store must be
+    # set for retention to start, and matches storage.type (filesystem).
+    compactor:
+      working_directory: /var/loki/compactor
+      retention_enabled: true
+      delete_request_store: filesystem
+
   singleBinary:
     replicas: 1
     persistence:
