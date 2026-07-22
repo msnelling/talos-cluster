@@ -1,5 +1,30 @@
 version: "3"
 
+vars:
+  # Health gate shared by upgrade-talos and reboot. Waits for the node to rejoin
+  # Ready, then for every attached Longhorn volume to return to healthy. Rebuild
+  # I/O from the node that just came back is what collapses iSCSI sessions on the
+  # other nodes and cascades them NotReady, so no rolling operation may touch
+  # node N+1 until node N's replicas have finished rebuilding (see
+  # docs/plans/2026-04-27-cilium-iscsi-cascade-postmortem.md). Only enforced when
+  # the caller also sets ABORT_ON_FAIL.
+  NODE_HEALTH_GATE: |
+    echo "Waiting for $NODE to become Ready..."
+    kubectl wait --for=condition=Ready "node/$NODE" --timeout=600s
+    echo "Waiting for Longhorn volumes to settle..."
+    for i in $(seq 1 90); do
+      UNHEALTHY=$(kubectl get volumes.longhorn.io -n longhorn-system -o json \
+        | jq -r '.items[] | select(.status.state=="attached" and .status.robustness!="healthy") | .metadata.name')
+      if [ -z "$UNHEALTHY" ]; then
+        echo "All attached volumes healthy"
+        exit 0
+      fi
+      echo "  waiting on: $(echo $UNHEALTHY | tr '\n' ' ')"
+      sleep 10
+    done
+    echo "ERROR: volumes still unhealthy after 15m"
+    exit 1
+
 tasks:
 
   _run-on-nodes:
@@ -107,27 +132,7 @@ tasks:
               --context {{.CLUSTER_NAME}} \
               --nodes "$NODE_IP" \
               --image "factory.talos.dev/installer-secureboot/{{.SCHEMATIC_ID}}:{{.TALOS_VERSION}}"
-          # Gate on health before draining the next node: wait for this node to
-          # rejoin Ready and for every attached Longhorn volume to return to
-          # healthy. Fails the node (and the run) if volumes don't settle, so a
-          # rolling upgrade can never drain node N+1 while node N's replicas
-          # are still rebuilding.
-          POST_NODE_CMD: |
-            echo "Waiting for $NODE to become Ready..."
-            kubectl wait --for=condition=Ready "node/$NODE" --timeout=600s
-            echo "Waiting for Longhorn volumes to settle..."
-            for i in $(seq 1 90); do
-              UNHEALTHY=$(kubectl get volumes.longhorn.io -n longhorn-system -o json \
-                | jq -r '.items[] | select(.status.state=="attached" and .status.robustness!="healthy") | .metadata.name')
-              if [ -z "$UNHEALTHY" ]; then
-                echo "All attached volumes healthy"
-                exit 0
-              fi
-              echo "  waiting on: $(echo $UNHEALTHY | tr '\n' ' ')"
-              sleep 10
-            done
-            echo "ERROR: volumes still unhealthy after 15m"
-            exit 1
+          POST_NODE_CMD: "{{.NODE_HEALTH_GATE}}"
 
   upgrade-k8s:
     desc: Upgrade Kubernetes version (cluster-wide)
@@ -178,8 +183,12 @@ tasks:
           TARGET_NODES: "{{.CLI_ARGS}}"
           ACTION_VERB: "Rebooting"
           ACTION_PAST: "reboot"
+          ABORT_ON_FAIL: "true"
           CMD_TEMPLATE: >-
             talosctl reboot --context {{.CLUSTER_NAME}} --nodes "$NODE_IP"
+          # A rolling reboot drains nodes exactly like a rolling upgrade, so it
+          # carries the same hazard and needs the same gate.
+          POST_NODE_CMD: "{{.NODE_HEALTH_GATE}}"
 
   reset:
     desc: "Wipe all nodes or a specific node (DESTRUCTIVE, usage: task day2:reset [-- <node-name>])"
