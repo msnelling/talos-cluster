@@ -16,9 +16,15 @@ tasks:
     #   TARGET_NODES - space-separated node names (defaults to all nodes)
     #   POST_NODE_CMD - optional health gate run after each node succeeds
     #                   (defaults to `true`)
+    #   ABORT_ON_FAIL - "true" stops at the first failed node instead of moving
+    #                   on. Required for rolling upgrades: acting on node N+1
+    #                   while node N is still unhealthy is what turns a single
+    #                   sick node into a cluster-wide outage. Defaults to
+    #                   "false" so `reset` still sweeps every node.
     env:
       NODE_CMD: "{{.CMD_TEMPLATE}}"
       POST_CMD: "{{.POST_NODE_CMD | default \"true\"}}"
+      ABORT_ON_FAIL: "{{.ABORT_ON_FAIL | default \"false\"}}"
     cmds:
       - |
         if [ -n "{{.TARGET_NODES}}" ]; then
@@ -34,12 +40,20 @@ tasks:
           if sh -c "$NODE_CMD"; then
             echo "$NODE: OK"
             if ! sh -c "$POST_CMD"; then
-              echo "WARNING: post-{{.ACTION_PAST}} health check failed for $NODE, continuing..."
               FAILED="$FAILED $NODE"
+              if [ "$ABORT_ON_FAIL" = "true" ]; then
+                echo "ERROR: post-{{.ACTION_PAST}} health check failed for $NODE, aborting before touching another node"
+                break
+              fi
+              echo "WARNING: post-{{.ACTION_PAST}} health check failed for $NODE, continuing..."
             fi
           else
-            echo "WARNING: Failed to {{.ACTION_PAST}} $NODE, continuing..."
             FAILED="$FAILED $NODE"
+            if [ "$ABORT_ON_FAIL" = "true" ]; then
+              echo "ERROR: failed to {{.ACTION_PAST}} $NODE, aborting before touching another node"
+              break
+            fi
+            echo "WARNING: Failed to {{.ACTION_PAST}} $NODE, continuing..."
           fi
         done
         if [ -n "$FAILED" ]; then
@@ -75,6 +89,7 @@ tasks:
           TARGET_NODES: "{{.CLI_ARGS}}"
           ACTION_VERB: "Upgrading Talos on"
           ACTION_PAST: "upgrade"
+          ABORT_ON_FAIL: "true"
           # Runs via `sh -c` with $NODE / $NODE_IP exported (see _run-on-nodes).
           # Forfeiting leadership before upgrading the leader sidesteps Talos's
           # in-pre-flight transfer, which can hang when the leader is older
