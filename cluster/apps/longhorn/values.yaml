@@ -35,3 +35,11 @@ longhorn:
     recurringJobSelector:
       enable: true
       jobList: '[{"name":"longhorn-backup","isGroup":true}]'
+  metrics:
+    serviceMonitor:
+      # longhorn-manager exports per-volume I/O on :9500, but nothing scraped it,
+      # so storage decisions (replica counts, which node holds what) had no data
+      # behind them. The label is what kube-prometheus-stack selects on.
+      enabled: true
+      additionalLabels:
+        release: kube-prometheus-stack
