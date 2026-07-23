@@ -1,0 +1,86 @@
+{{- /*
+The upstream chart's alerts are NVMe-centric — media_errors, available_spare,
+critical_warning and percentage_used are all NVMe SMART log fields. On a SATA
+disk the only shipped coverage is overall smart_status, temperature and
+interface speed, none of which move until a drive is already failing.
+
+ATA drives report degradation through the attribute table instead, so these
+rules watch the attributes that actually predict failure. That matters here
+because lenovo1's LITEONIT is the fleet's only non-NVMe disk and carries etcd
+plus the CNPG local PV, and it does not even report Power_On_Hours — the
+attribute table is the only wear signal available for it.
+*/ -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: smartctl-exporter-ata
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: smartctl-ata
+      rules:
+        - alert: SmartCTLDeviceReallocatedSectors
+          expr: smartctl_device_attribute{attribute_name="Reallocated_Sector_Ct", attribute_value_type="raw"} > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Device has reallocated sectors
+            description: >-
+              Device {{ `{{ $labels.device }}` }} on {{ `{{ $labels.instance }}` }}
+              has reallocated {{ `{{ $value }}` }} sector(s). The count only ever
+              rises; treat any increase as the drive beginning to fail.
+        - alert: SmartCTLDeviceUncorrectableErrors
+          expr: smartctl_device_attribute{attribute_name="Reported_Uncorrect", attribute_value_type="raw"} > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Device reported uncorrectable errors
+            description: >-
+              Device {{ `{{ $labels.device }}` }} on {{ `{{ $labels.instance }}` }}
+              reported {{ `{{ $value }}` }} uncorrectable error(s) — reads the
+              drive could not satisfy from ECC or spare blocks.
+        - alert: SmartCTLDeviceSpareBlocksConsumed
+          expr: smartctl_device_attribute{attribute_name="Used_Rsvd_Blk_Cnt_Tot", attribute_value_type="raw"} > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Device has started consuming spare blocks
+            description: >-
+              Device {{ `{{ $labels.device }}` }} on {{ `{{ $labels.instance }}` }}
+              has used {{ `{{ $value }}` }} reserved block(s). Early wear
+              indicator — it precedes reallocated sectors.
+        - alert: SmartCTLDeviceProgramEraseFailures
+          expr: smartctl_device_attribute{attribute_name=~"Program_Fail_Cnt_Total|Erase_Fail_Count_Total", attribute_value_type="raw"} > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Device has NAND program or erase failures
+            description: >-
+              Device {{ `{{ $labels.device }}` }} on {{ `{{ $labels.instance }}` }}
+              reports {{ `{{ $value }}` }} {{ `{{ $labels.attribute_name }}` }}.
+              Individual NAND operations are failing.
+        - alert: SmartCTLDeviceAttributeBelowThreshold
+          # Generic backstop: any attribute whose normalised value has fallen to
+          # the vendor's own failure threshold, whatever it is called on a
+          # particular drive.
+          # The thresh > 0 guard must be parenthesised: comparison operators are
+          # left-associative, so without it the > 0 filters the left-hand value
+          # instead of the threshold.
+          expr: |
+            smartctl_device_attribute{attribute_value_type="value"}
+              <= on(instance, device, attribute_name)
+            (smartctl_device_attribute{attribute_value_type="thresh"} > 0)
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: SMART attribute has reached its failure threshold
+            description: >-
+              Attribute {{ `{{ $labels.attribute_name }}` }} on device
+              {{ `{{ $labels.device }}` }} ({{ `{{ $labels.instance }}` }}) has
+              fallen to the vendor failure threshold.
