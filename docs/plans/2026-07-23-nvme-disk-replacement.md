@@ -271,16 +271,56 @@ Both swaps completed the same day. lenovo2 and lenovo3 now run 1 TB NVMe
 (`WD_BLACK SN7100`, 928 GiB usable to Longhorn each); etcd 3/3, CNPG 3/3
 streaming with one instance per node, all 20 volumes healthy and evenly placed.
 
-Capacity is now lopsided and lenovo1 is the constraint: 236 GiB total with
-~50 GiB free and 20 replicas, against ~895 GiB idle on lenovo2. The 14
-2-replica volumes sit on lenovo1+lenovo3 and will not migrate on their own,
-since each is balanced when judged alone.
+Capacity is lopsided and lenovo1 is the constraint: 236 GiB total against
+~900 GiB free on each NVMe node. The 14 volumes that were already at 2 replicas
+sit on lenovo1+lenovo3 and will not migrate on their own, since each is balanced
+when judged alone. Evicting lenovo1 (`allowScheduling: false` +
+`evictionRequested: true`, then re-enabling scheduling once empty) relocates
+them onto the NVMe pair, and is the remaining piece of work.
 
-- Raising `defaultReplicaCount` to 3 would give each of those a copy on lenovo2
-  and spread the load — the natural next change now that two nodes have room.
-- lenovo1's LITEONIT SATA SSD is the last old drive and the slowest disk in the
-  fleet. Given how the SU630 behaved, it is the most likely next failure and the
-  obvious candidate for a third NVMe — the procedure above applies unchanged,
-  with lenovo1 evicted first.
+**lenovo1 cannot take an NVMe** — different, older hardware with no M.2 slot. So
+this is the permanent topology: two fast nodes and one slow one, not a state to
+be upgraded out of.
+
+### Replica counts: nothing here needs three
+
+Six volumes were still at `numberOfReplicas: 3` — historical drift from when the
+default was 3. Nothing in git pinned them there (the `longhorn` StorageClass
+already specifies 2, and the static PV templates for gitea/pgadmin declare
+`numberOfReplicas: "1"` in `volumeAttributes`, which never applied because those
+attributes only take effect when Longhorn *creates* the volume, not when a PV
+references an existing one by `volumeHandle`).
+
+A third replica buys survival of two simultaneous node losses. On three nodes,
+two nodes down means etcd has lost quorum and nothing is running anyway — so it
+protects data in a scenario where the workload cannot function regardless. That
+is what the daily S3 backups are for. Against that, the third replica costs a
+synchronous write to a third disk, 50% more rebuild traffic on every reboot (the
+cascade trigger), and more CRD churn in etcd.
+
+**This is also the precondition for keeping SATA out of the write path.** With
+hard anti-affinity on three nodes, a 3-replica volume has no placement freedom:
+one replica per node, so lenovo1 is *mandatorily* in every write path. You
+cannot have both three replicas and NVMe-only placement.
+
+All six were dropped to 2 on 2026-07-23. Longhorn removed the lenovo1 replica
+from each, so they landed on lenovo2+lenovo3 — entirely on NVMe, with no rebuild
+traffic, since reducing a replica count only deletes surplus replicas.
+
+### Prioritising the fast disks
+
+Longhorn tags (`diskSelector`/`nodeSelector` on a StorageClass) are a **hard
+filter, not a preference**. Tagging only the NVMe pair means lenovo1 cannot hold
+those replicas even as a rebuild target — and with two eligible nodes and hard
+anti-affinity, a single node outage leaves the volume on one replica with
+nowhere to rebuild until it returns. Today, with three eligible nodes and two
+replicas, a node loss self-heals onto the spare.
+
+Prefer to leave lenovo1 untagged and schedulable, and let free space do the
+work: Longhorn favours disks with more available space, and 928 GiB nodes keep
+beating a 236 GiB one, so new volumes tend toward NVMe on their own — as
+observed when the six volumes above shed exactly their lenovo1 replica. That is
+a tendency, not a guarantee; reach for tags only if a specific volume must never
+touch SATA, and accept losing the rebuild target for it.
 - Optional: refit lenovo2's healthy SU800 in its SATA bay as a second Longhorn
   data disk for capacity. The SU630 should be binned.
