@@ -99,8 +99,10 @@ stale Longhorn/openebs data on disk.
 ### Reinstall and rejoin
 
 ```bash
-# Boot the USB into maintenance mode, then confirm the device path
-talosctl -n 10.1.1.203 --insecure get disks
+# Boot the USB into maintenance mode, then confirm the device path.
+# --insecure is a flag of `get`, so it must follow the subcommand.
+talosctl -n 10.1.1.203 get disks --insecure
+talosctl -n 10.1.1.203 get discoveredvolumes --insecure   # expect a blank disk, no EFI/STATE/EPHEMERAL
 
 # Update vars.yaml:  lenovo3  disk: /dev/nvme0n1
 
