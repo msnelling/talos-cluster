@@ -82,10 +82,23 @@ tasks:
         sh: yq '.control_plane_vip // ""' vars.yaml
       NODE_SCHEDULABLE:
         sh: yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .schedulable // true' vars.yaml
+      # Derived from the install disk so it needs no extra vars.yaml field, and
+      # survives node rebuilds because it lives in the machine config rather
+      # than as a hand-applied `kubectl label`. Consumed by smartctl-exporter,
+      # whose device list differs per bus: NVMe nodes expose the real disk as
+      # /dev/nvme0n1, while on SATA nodes it is /dev/sda — indistinguishable by
+      # scan from the Longhorn iSCSI devices that share the /dev/sd* namespace.
+      NODE_DISK_TYPE:
+        sh: |
+          case "$(yq '.nodes[] | select(.name == "{{.NODE_NAME}}") | .disk' vars.yaml)" in
+            /dev/nvme*) echo nvme ;;
+            *) echo sata ;;
+          esac
     cmds:
-      - echo "Patching config for {{.NODE_NAME}} ({{.NODE_IP}}, {{.NODE_ROLE}})..."
+      - echo "Patching config for {{.NODE_NAME}} ({{.NODE_IP}}, {{.NODE_ROLE}}, {{.NODE_DISK_TYPE}})..."
       - yq -n '
           .machine.install.disk = "{{.NODE_DISK}}" |
+          .machine.nodeLabels."xmple.io/disk-type" = "{{.NODE_DISK_TYPE}}" |
           .machine.network.interfaces[0].interface = "{{.NODE_INTERFACE}}" |
           .machine.network.interfaces[0].dhcp = true
         ' > generated/{{.NODE_NAME}}-common-patch.yaml
