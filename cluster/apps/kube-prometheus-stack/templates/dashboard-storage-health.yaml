@@ -1,0 +1,255 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-storage-health
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  storage-health.json: |-
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "title": "Volume Write Throughput (top 10)",
+          "description": "Which volumes are actually write-hot. Longhorn replicates synchronously, so a volume's write latency is set by its slowest replica — this is the panel to consult before deciding where replicas belong.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" },
+              "unit": "Bps"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource}" },
+              "expr": "topk(10, longhorn_volume_write_throughput)",
+              "legendFormat": "{{`{{ volume }}`}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Volume Read Throughput (top 10)",
+          "description": "Read load per volume. Reads are served from a single replica, so these do not carry the same placement implications as writes.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" },
+              "unit": "Bps"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource}" },
+              "expr": "topk(10, longhorn_volume_read_throughput)",
+              "legendFormat": "{{`{{ volume }}`}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Replica Count per Node",
+          "description": "Replica placement, from longhorn_replica_info — the authoritative source. Note the node label on longhorn_volume_* metrics is the attachment (engine) node instead, which is a different thing. A node climbing while others sit flat is placement drift; a node at zero is excluded from scheduling.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "showPoints": "never", "stepAfter": true },
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "right", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource}" },
+              "expr": "count by (node) (longhorn_replica_info)",
+              "legendFormat": "{{`{{ node }}`}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Degraded / Faulted Volumes",
+          "description": "longhorn_volume_robustness is one-hot: a series exists per state and the current one reads 1. Anything above zero here during a node drain or rebuild is the early signal of the iSCSI cascade documented in docs/plans/2026-04-27-cilium-iscsi-cascade-postmortem.md.",
+          "type": "stat",
+          "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource}" },
+              "expr": "count(longhorn_volume_robustness{state=~\"degraded|faulted\"} == 1) or vector(0)",
+              "legendFormat": "unhealthy",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Disk Temperature",
+          "description": "NVMe only — the LITEONIT SATA disk in lenovo1 reports no temperature attribute at all, so it is absent by design rather than broken.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "showPoints": "never" },
+              "unit": "celsius"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource}" },
+              "expr": "smartctl_device_temperature{temperature_type=\"current\"} * on(pod) group_left(node) kube_pod_info{namespace=\"smartctl-exporter\"}",
+              "legendFormat": "{{`{{ node }}`}} {{`{{ device }}`}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "NVMe Wear",
+          "description": "Endurance consumed and spare capacity remaining, from the NVMe SMART log. percentage_used passing 100 means the drive has exceeded its rated endurance; it keeps working but the manufacturer no longer vouches for retention.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 2, "showPoints": "never" },
+              "unit": "percent",
+              "min": 0,
+              "max": 100
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "right", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource}" },
+              "expr": "smartctl_device_percentage_used * on(pod) group_left(node) kube_pod_info{namespace=\"smartctl-exporter\"}",
+              "legendFormat": "{{`{{ node }}`}} {{`{{ device }}`}} used",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource}" },
+              "expr": "smartctl_device_available_spare * on(pod) group_left(node) kube_pod_info{namespace=\"smartctl-exporter\"}",
+              "legendFormat": "{{`{{ node }}`}} {{`{{ device }}`}} spare",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "title": "SATA Health Counters",
+          "description": "The only wear signals lenovo1's LITEONIT exposes — it reports no Power_On_Hours and no temperature. Both counters are monotonic and sit at zero on a healthy drive: any increase at all means the disk has started to fail, and both are alerted on as critical.",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "showPoints": "never", "stepAfter": true },
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "right", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource}" },
+              "expr": "smartctl_device_attribute{attribute_name=\"Reallocated_Sector_Ct\", attribute_value_type=\"raw\"} * on(pod) group_left(node) kube_pod_info{namespace=\"smartctl-exporter\"}",
+              "legendFormat": "{{`{{ node }}`}} {{`{{ device }}`}} reallocated",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource}" },
+              "expr": "smartctl_device_attribute{attribute_name=\"Reported_Uncorrect\", attribute_value_type=\"raw\"} * on(pod) group_left(node) kube_pod_info{namespace=\"smartctl-exporter\"}",
+              "legendFormat": "{{`{{ node }}`}} {{`{{ device }}`}} uncorrectable",
+              "refId": "B"
+            }
+          ]
+        }
+      ],
+      "refresh": "1m",
+      "schemaVersion": 39,
+      "tags": ["storage", "longhorn", "smart"],
+      "templating": {
+        "list": [
+          {
+            "current": { "selected": false, "text": "Prometheus", "value": "prometheus" },
+            "hide": 0,
+            "includeAll": false,
+            "label": "Data source",
+            "multi": false,
+            "name": "datasource",
+            "options": [],
+            "query": "prometheus",
+            "refresh": 1,
+            "regex": "",
+            "type": "datasource"
+          }
+        ]
+      },
+      "time": { "from": "now-6h", "to": "now" },
+      "title": "Storage Health",
+      "uid": "storage-health"
+    }
