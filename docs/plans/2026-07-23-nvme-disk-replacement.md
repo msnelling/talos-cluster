@@ -213,10 +213,31 @@ kubectl patch nodes.longhorn.io lenovo2 -n longhorn-system --type merge \
   -p '{"spec":{"allowScheduling":true,"evictionRequested":false}}'
 ```
 
-Expect the 3-replica volumes to report **degraded** throughout the eviction
-window: with hard anti-affinity and only two schedulable nodes there is nowhere
-for a third copy. They still hold two real replicas, and the status clears once
-lenovo2 rejoins.
+Eviction relaxes hard anti-affinity rather than leaving volumes degraded, so the
+3-replica volumes end the window with **two or three copies stacked on lenovo1**
+(observed: `minecraft-server-mc1/2/3`, `pgadmin-data`, `pvc-fc8b…` all at
+`lenovo1 ×3, lenovo3`, i.e. one replica *over* spec). Every volume still reports
+healthy, because from Longhorn's point of view the replica count is satisfied —
+but three copies on one node is one failure domain, not three, and it fills the
+remaining node's disk. Do not treat "all healthy" as "correctly placed" here;
+check placement, not just robustness:
+
+```bash
+kubectl get replicas.longhorn.io -n longhorn-system -o json \
+  | jq -r '[.items[] | {v:.spec.volumeName, n:.spec.nodeID}] | group_by(.v)[]
+           | "\(.[0].v)\t\(map(.n)|sort|join(","))"'
+```
+
+Re-enabling scheduling on the rebuilt node clears this on its own — but
+**slowly**, because rebuilds are serialised by
+`concurrentReplicaRebuildPerNodeLimit: 1`. It converged fully here in under ten
+minutes, one volume at a time, ending at exactly one replica per node with the
+total replica count back to spec. Counts sitting still for a minute or two mean
+nothing: only one volume is being worked on at a time and the rest are queued.
+**Do not hand-delete the surplus replicas to force it** — that adds rebuild
+traffic to a cluster with a cascade history, to accelerate something that
+finishes by itself. Sample placement a few minutes apart before concluding
+anything is stuck.
 
 ## Abort criteria
 
@@ -238,10 +259,28 @@ leases fail and all three nodes go NotReady. Each phase therefore gates on
 - `task db:status`, `task db:backup`, `task db:restore-verify`.
 - Check application connectivity: gitea, grafana, seerr.
 - `kubectl get volumes.longhorn.io -A` — all healthy at their target replica
-  count.
-- Consider raising `defaultReplicaCount` back to 3 now that three healthy fast
-  disks exist.
-- lenovo1's LITEONIT SATA SSD becomes the slowest disk in the fleet and the last
-  old drive — a candidate for a third NVMe later.
+  count, **and** one replica per node in the placement query above.
+- `talosctl get systemdisk` on each rebuilt node — confirm it resolves to
+  `nvme0n1`, not a leftover `sda`.
+- `talosctl etcd members` — three members, and the rebuilt node carries a *new*
+  member ID (proof the old member left cleanly rather than being reused).
+
+## Outcome (2026-07-23)
+
+Both swaps completed the same day. lenovo2 and lenovo3 now run 1 TB NVMe
+(`WD_BLACK SN7100`, 928 GiB usable to Longhorn each); etcd 3/3, CNPG 3/3
+streaming with one instance per node, all 20 volumes healthy and evenly placed.
+
+Capacity is now lopsided and lenovo1 is the constraint: 236 GiB total with
+~50 GiB free and 20 replicas, against ~895 GiB idle on lenovo2. The 14
+2-replica volumes sit on lenovo1+lenovo3 and will not migrate on their own,
+since each is balanced when judged alone.
+
+- Raising `defaultReplicaCount` to 3 would give each of those a copy on lenovo2
+  and spread the load — the natural next change now that two nodes have room.
+- lenovo1's LITEONIT SATA SSD is the last old drive and the slowest disk in the
+  fleet. Given how the SU630 behaved, it is the most likely next failure and the
+  obvious candidate for a third NVMe — the procedure above applies unchanged,
+  with lenovo1 evicted first.
 - Optional: refit lenovo2's healthy SU800 in its SATA bay as a second Longhorn
   data disk for capacity. The SU630 should be binned.
