@@ -14,3 +14,6 @@ apps:
   - name: alloy
     namespace: monitoring
     path: cluster/apps/alloy
+  - name: smartctl-exporter
+    namespace: smartctl-exporter
+    path: cluster/apps/smartctl-exporter
