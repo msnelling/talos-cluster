@@ -271,12 +271,13 @@ Both swaps completed the same day. lenovo2 and lenovo3 now run 1 TB NVMe
 (`WD_BLACK SN7100`, 928 GiB usable to Longhorn each); etcd 3/3, CNPG 3/3
 streaming with one instance per node, all 20 volumes healthy and evenly placed.
 
-Capacity is lopsided and lenovo1 is the constraint: 236 GiB total against
-~900 GiB free on each NVMe node. The 14 volumes that were already at 2 replicas
-sit on lenovo1+lenovo3 and will not migrate on their own, since each is balanced
-when judged alone. Evicting lenovo1 (`allowScheduling: false` +
-`evictionRequested: true`, then re-enabling scheduling once empty) relocates
-them onto the NVMe pair, and is the remaining piece of work.
+**Final state:** all 20 volumes hold two replicas, one on lenovo2 and one on
+lenovo3 — SATA is out of every volume's write path. lenovo1 was evicted
+(`allowScheduling: false` + `evictionRequested: true`), which relocated ~89 GiB
+across 14 replicas onto lenovo2 with no volume ever dropping below two copies
+and no node leaving Ready. Scheduling was then re-enabled with
+`evictionRequested: false`, leaving lenovo1 empty but eligible: it is the only
+rebuild target if an NVMe node is lost, which is why it was not simply excluded.
 
 **lenovo1 cannot take an NVMe** — different, older hardware with no M.2 slot. So
 this is the permanent topology: two fast nodes and one slow one, not a state to
@@ -322,5 +323,69 @@ beating a 236 GiB one, so new volumes tend toward NVMe on their own — as
 observed when the six volumes above shed exactly their lenovo1 replica. That is
 a tendency, not a guarantee; reach for tags only if a specific volume must never
 touch SATA, and accept losing the rebuild target for it.
+
+Note the tendency only applies when Longhorn is *choosing* a replica location.
+It never relocates a healthy existing replica, which is why the 14 volumes
+already at two replicas stayed on lenovo1 until they were explicitly evicted.
+
+### The SU800 was not fitted to lenovo1
+
+lenovo1's LITEONIT was a candidate for replacement by the healthy SU800 pulled
+from lenovo2, on the theory that an unknown decade-old drive should not sit
+under etcd and the CNPG local PV — the two most fsync-sensitive workloads, and
+now the only things left on it. SMART says otherwise:
+
+| Attribute | Raw |
+|---|---|
+| `Reallocated_Sector_Ct` | 0 |
+| `Reported_Uncorrect` | 0 |
+| `Program_Fail_Cnt_Total` / `Erase_Fail_Count_Total` | 0 |
+| `Used_Rsvd_Blk_Cnt_Tot` | 0 (of 1952 spare blocks) |
+| normalised value / worst | 100 / 100 |
+
+Every wear and error indicator reads zero. Two caveats: the drive reports **no
+`Power_On_Hours` attribute at all**, so its age cannot be quantified, and the
+raw `Total_LBAs_Written` figure uses an undocumented vendor multiplier, so it
+should not be converted to terabytes written.
+
+The comparison could not be completed either way — the SU800 was already out of
+the fleet, so its own SMART cannot be read without fitting it somewhere. Swapping
+a measurably clean drive for an unreadable one, at the cost of a third node
+rebuild, is not justified. **The SU800 is kept as a cold spare.** Revisit if
+`Reallocated_Sector_Ct` ever moves off zero — which now pages.
+
+### Monitoring added alongside this work
+
+None of the decisions above could be made from data when the day started:
+nothing scraped Longhorn, and no SMART was collected anywhere. lenovo3's SU630
+failure had been caught only by kernel ATA timeouts, i.e. after it was already
+starving etcd. Four changes closed that:
+
+- **Longhorn ServiceMonitor** — `longhorn_volume_*` per-volume throughput, IOPS
+  and latency now reach Prometheus.
+- **smartctl-exporter** — privileged DaemonSet with `/dev` bind-mounted, in its
+  own privileged-labelled namespace, since Talos ships no smartmontools
+  extension (`nvme-cli` exists; nothing reads SATA SMART).
+- **Per-node device selection** — the exporter's autoscan enumerated every
+  Longhorn iSCSI device. Neither scan type nor a name regexp can separate them
+  (a SATA disk scans as `-d scsi` exactly like iSCSI; and `/dev/sda` is the real
+  disk on lenovo1 but an iSCSI device on the NVMe nodes, which no longer have a
+  SATA disk). Devices are therefore listed explicitly per disk type, keyed on a
+  `xmple.io/disk-type` node label set from `machine.nodeLabels` and derived from
+  the install disk in `vars.yaml` — so it survives a rebuild, unlike Longhorn's
+  node tags, which were lost during this very exercise.
+- **ATA wear alerts + a Storage Health dashboard** — the upstream chart's alerts
+  read NVMe SMART log fields that do not exist on SATA, leaving reallocated
+  sectors and uncorrectables unalerted on the one drive that most needs them.
+
+**Metric gotcha worth knowing:** replica placement is `longhorn_replica_info`.
+The `node` label on `longhorn_volume_*` is the *attachment* (engine) node, which
+is a different thing and easy to misread as placement.
+
+### Remaining follow-ups
+
 - Optional: refit lenovo2's healthy SU800 in its SATA bay as a second Longhorn
   data disk for capacity. The SU630 should be binned.
+- `defaultReplicaCount` stays at 2. See the replica-count reasoning above — with
+  lenovo1 permanently SATA, raising it to 3 would put the slow disk back into
+  every write path.
