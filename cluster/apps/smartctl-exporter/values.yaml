@@ -1,0 +1,21 @@
+# Values are scoped to the dependency alias (the chart name:
+# prometheus-smartctl-exporter).
+prometheus-smartctl-exporter:
+  serviceMonitor:
+    # kube-prometheus-stack's serviceMonitorSelector matches on this label; its
+    # namespace selector is empty, so this namespace is already in scope.
+    enabled: true
+    extraLabels:
+      release: kube-prometheus-stack
+  prometheusRules:
+    # Ships alerts for SMART status, media errors, spare capacity and
+    # temperature. The same release label gates ruleSelector.
+    enabled: true
+    extraLabels:
+      release: kube-prometheus-stack
+  rbac:
+    # The chart's only RBAC object binds the ServiceAccount to a PodSecurityPolicy
+    # ClusterRole (`unrestricted-psp`) that no longer exists — PSP was removed in
+    # Kubernetes 1.25. The exporter needs no API access, so skip it rather than
+    # sync a dangling binding.
+    create: false
