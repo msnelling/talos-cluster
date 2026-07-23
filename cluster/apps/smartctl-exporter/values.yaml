@@ -1,6 +1,27 @@
 # Values are scoped to the dependency alias (the chart name:
 # prometheus-smartctl-exporter).
 prometheus-smartctl-exporter:
+  # Devices must be listed explicitly, per disk type. Automatic scanning picks
+  # up every Longhorn iSCSI volume attached to the node — they enumerate as
+  # /dev/sd* alongside real disks, come and go as volumes attach, and make
+  # smartctl log "device not found" continuously. Filtering by scan type does
+  # not help: a SATA disk scans as `-d scsi`, exactly like the iSCSI ones.
+  #
+  # The node label comes from machine.nodeLabels, derived from the install disk
+  # in taskfiles/setup.yaml, so it survives a node rebuild.
+  config:
+    devices:
+      - /dev/nvme0n1
+  nodeSelector:
+    xmple.io/disk-type: nvme
+  extraInstances:
+    - config:
+        devices:
+          # The system disk is always sda on a SATA node: it is enumerated at
+          # boot, before any iSCSI session is established.
+          - /dev/sda
+      nodeSelector:
+        xmple.io/disk-type: sata
   serviceMonitor:
     # kube-prometheus-stack's serviceMonitorSelector matches on this label; its
     # namespace selector is empty, so this namespace is already in scope.
