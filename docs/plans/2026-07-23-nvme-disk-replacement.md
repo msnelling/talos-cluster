@@ -117,16 +117,52 @@ to three, Cilium agent running.
 
 ### Clean up node-pinned volumes
 
-The `local-hostpath` PVs are `Retain`, so they survive as `Released` with no data
-behind them. Delete them and let the controllers rebuild:
+The rebuilt node comes back with the old PVCs still `Bound` to `local-hostpath`
+PVs whose backing directories went with the old disk. Their pods are recreated
+immediately by the CNPG operator and the runner StatefulSet, and fail with:
+
+```
+MountVolume.NewMounter initialization failed for volume "pvc-…":
+path "/var/openebs/local/pvc-…" does not exist
+```
+
+**Deleting the PVC first does not work.** `kubernetes.io/pvc-protection` holds
+the delete open for as long as a pod references the claim, and the controller
+keeps recreating that pod — the PVC sits in `Terminating` indefinitely. The pod
+and the PVC have to go together.
+
+For CNPG use the plugin's `destroy`, which removes the instance pod and its PVC
+in one operation, leaving no window for the operator to re-reference the claim:
 
 ```bash
-kubectl delete pod  -n cnpg-cluster cnpg-cluster-1
-kubectl delete pvc  -n cnpg-cluster cnpg-cluster-1     # operator rebuilds via pg_basebackup, new serial
-kubectl delete pvc  -n gitea-runner data-runner-gitea-runner-runner-0
-kubectl delete pod  -n gitea-runner runner-gitea-runner-runner-0
-kubectl get pv | grep Released                         # delete the released local-hostpath PVs
-kubectl cnpg status cnpg-cluster -n cnpg-cluster        # wait for 3/3 streaming
+kubectl cnpg destroy cnpg-cluster 1 -n cnpg-cluster   # instance number, not pod name
+```
+
+The operator then rebuilds the instance via `pg_basebackup` from the primary
+(a `cnpg-cluster-1-join-…` pod). The instance keeps its original name.
+
+For the runner StatefulSet, delete the claim without waiting, then the pod — once
+the pod is gone the finalizer clears, the claim is removed, and the StatefulSet
+recreates both against a freshly provisioned volume:
+
+```bash
+kubectl delete pvc -n gitea-runner data-runner-gitea-runner-runner-0 --wait=false
+kubectl delete pod -n gitea-runner gitea-runner-runner-0
+```
+
+The PVs are `reclaimPolicy: Retain`, so both linger as `Released` with no data
+behind them and must be removed by hand:
+
+```bash
+kubectl get pv -o json | jq -r '.items[] | select(.status.phase=="Released") | .metadata.name'
+kubectl delete pv <name>
+```
+
+Finally confirm the database is whole again — 3/3 ready, all instances at the
+same LSN, WAL archiving OK with nothing waiting:
+
+```bash
+kubectl cnpg status cnpg-cluster -n cnpg-cluster
 ```
 
 ### Re-admit lenovo3 to Longhorn
@@ -141,6 +177,14 @@ but this is still the rebuild-storm pattern from the 2026-07-10 incidents — do
 in a quiet window and watch `kubectl get volumes.longhorn.io -A -w`. Wait for
 every volume healthy, including the third replica on the 3-replica volumes
 (gitea-shared-storage, minecraft-server-mc1/2/3, pgadmin-data), before Phase 2.
+
+Expect only the 3-replica volumes to move. `replicaAutoBalance` evaluates each
+volume independently, and a 2-replica volume spread across two nodes is already
+balanced from its own point of view — so the db3000 volumes stay on
+lenovo1+lenovo2 even though lenovo3 is now empty and schedulable. That is
+correct, not a stalled rebalance: their move happens during the Phase 2
+eviction, which is what keeps two copies live throughout. Budget for it —
+roughly 140 GiB of replica data, serialised one rebuild at a time.
 
 ## Phase 2 — lenovo2 (10.1.1.146)
 
@@ -161,8 +205,8 @@ kubectl cnpg promote cnpg-cluster -n cnpg-cluster cnpg-cluster-2
 ```
 
 Then repeat Phase 1's reset → swap → rejoin against `10.1.1.146` / lenovo2,
-followed by the same PVC cleanup (`cnpg-cluster-3` this time; no gitea-runner
-volume here), then:
+followed by the same node-pinned volume cleanup — `kubectl cnpg destroy
+cnpg-cluster 3` this time, and no gitea-runner volume to deal with — then:
 
 ```bash
 kubectl patch nodes.longhorn.io lenovo2 -n longhorn-system --type merge \
