@@ -1,5 +1,5 @@
 actions:
-  enabled: true
+  enabled: false
   giteaRootURL: "http://gitea-http.gitea.svc.cluster.local:3000"
   existingSecret: "runner-token"
   existingSecretKey: "token"
