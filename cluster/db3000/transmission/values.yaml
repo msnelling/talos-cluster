@@ -32,7 +32,7 @@ media-app:
       memory: 1500Mi
   sidecars:
     - name: gluetun
-      image: docker.io/qmcgaw/gluetun:v3.41.1
+      image: docker.io/qmcgaw/gluetun:v3.41.2
       ports:
         - name: proxy
           containerPort: 8888
