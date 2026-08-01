@@ -10,8 +10,7 @@ gha-runner-scale-set:
   containerMode:
     type: "kubernetes"
     kubernetesModeWorkVolumeClaim:
-      accessModes: ["ReadWriteOnce"]
-      storageClassName: "longhorn-ephemeral"
+      storageClassName: local-hostpath
       resources:
         requests:
           storage: 10Gi
