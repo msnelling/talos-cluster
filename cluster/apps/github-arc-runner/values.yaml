@@ -20,6 +20,18 @@ gha-runner-scale-set:
 
   template:
     spec:
+      # Confine runners to the NVMe nodes (lenovo2/lenovo3), which also carry
+      # twice the RAM of lenovo1. The label is set from machine.nodeLabels in
+      # taskfiles/setup.yaml and derived from the install disk, so it survives a
+      # node rebuild — same selector smartctl-exporter uses.
+      #
+      # This pins the runner pod. The workflow job pod is created separately by
+      # the container hook and does not inherit this selector, but it mounts the
+      # same work PVC, and the OpenEBS hostpath PV carries a required
+      # nodeAffinity for the node it was provisioned on — so the scheduler
+      # confines the job pod to the runner's node transitively.
+      nodeSelector:
+        xmple.io/disk-type: nvme
       securityContext:
         fsGroup: 1001
 
