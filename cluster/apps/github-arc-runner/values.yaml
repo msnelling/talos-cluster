@@ -10,7 +10,10 @@ gha-runner-scale-set:
   containerMode:
     type: "kubernetes"
     kubernetesModeWorkVolumeClaim:
-      storageClassName: local-hostpath
+      # Job scratch, discarded with the ephemeral runner pod. Uses the Delete
+      # variant of the hostpath class so each job's PV and directory are
+      # reclaimed; the default local-hostpath is Retain and would strand both.
+      storageClassName: local-hostpath-ephemeral
       resources:
         requests:
           storage: 10Gi
