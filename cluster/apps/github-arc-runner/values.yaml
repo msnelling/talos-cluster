@@ -5,7 +5,11 @@ gha-runner-scale-set:
   runnerScaleSetName: "github-arc-runner"
 
   minRunners: 0
-  maxRunners: 3
+  # Two concurrent jobs. At the burstable sizing below they reserve 2.5 CPU /
+  # 9Gi between them, which both NVMe nodes can carry; at full burst they would
+  # want 10 CPU / 36Gi, which is deliberate oversubscription of capacity that
+  # measures idle.
+  maxRunners: 2
 
   containerMode:
     type: "kubernetes"
@@ -34,6 +38,26 @@ gha-runner-scale-set:
         xmple.io/disk-type: nvme
       securityContext:
         fsGroup: 1001
+      containers:
+        # Sized for the agent alone, not the build. Under containerMode
+        # kubernetes every step runs in a separate job pod created by the
+        # container hook (ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER is set), so this
+        # pod only polls, streams logs and drives the hook. The job pod is
+        # sized by the LimitRange in templates/limitrange.yaml.
+        # image and command restate the subchart's defaults verbatim. Helm
+        # replaces lists rather than merging them, so overriding this list to
+        # add resources drops every key it does not respell — and the chart
+        # supplies no fallback for these two. Re-check them on chart upgrade.
+        - name: runner
+          image: ghcr.io/actions/actions-runner:latest
+          command: ["/home/runner/run.sh"]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
 
   controllerServiceAccount:
     namespace: github-arc-controller
