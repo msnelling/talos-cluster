@@ -5,7 +5,11 @@ gha-runner-scale-set:
   runnerScaleSetName: "github-arc-runner"
 
   minRunners: 0
-  maxRunners: 3
+  # Two concurrent jobs. At the burstable sizing below they reserve 2.5 CPU /
+  # 9Gi between them, which both NVMe nodes can carry; at full burst they would
+  # want 10 CPU / 36Gi, which is deliberate oversubscription of capacity that
+  # measures idle.
+  maxRunners: 2
 
   containerMode:
     type: "kubernetes"
@@ -20,8 +24,40 @@ gha-runner-scale-set:
 
   template:
     spec:
+      # Confine runners to the NVMe nodes (lenovo2/lenovo3), which also carry
+      # twice the RAM of lenovo1. The label is set from machine.nodeLabels in
+      # taskfiles/setup.yaml and derived from the install disk, so it survives a
+      # node rebuild — same selector smartctl-exporter uses.
+      #
+      # This pins the runner pod. The workflow job pod is created separately by
+      # the container hook and does not inherit this selector, but it mounts the
+      # same work PVC, and the OpenEBS hostpath PV carries a required
+      # nodeAffinity for the node it was provisioned on — so the scheduler
+      # confines the job pod to the runner's node transitively.
+      nodeSelector:
+        xmple.io/disk-type: nvme
       securityContext:
         fsGroup: 1001
+      containers:
+        # Sized for the agent alone, not the build. Under containerMode
+        # kubernetes every step runs in a separate job pod created by the
+        # container hook (ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER is set), so this
+        # pod only polls, streams logs and drives the hook. The job pod is
+        # sized by the LimitRange in templates/limitrange.yaml.
+        # image and command restate the subchart's defaults verbatim. Helm
+        # replaces lists rather than merging them, so overriding this list to
+        # add resources drops every key it does not respell — and the chart
+        # supplies no fallback for these two. Re-check them on chart upgrade.
+        - name: runner
+          image: ghcr.io/actions/actions-runner:latest
+          command: ["/home/runner/run.sh"]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
 
   controllerServiceAccount:
     namespace: github-arc-controller
