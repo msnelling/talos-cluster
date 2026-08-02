@@ -11,9 +11,9 @@ Install GitHub Actions Runner Controller (ARC) to provide self-hosted runners fo
 
 Two wrapper Helm charts:
 
-1. **`github-arc-controller`** — Installs the ARC operator (once per cluster). Wraps `gha-runner-scale-set-controller` v0.13.1 from `oci://ghcr.io/actions/actions-runner-controller-charts`.
+1. **`github-arc-controller`** — Installs the ARC operator (once per cluster). Wraps `gha-runner-scale-set-controller` v0.14.2 from `oci://ghcr.io/actions/actions-runner-controller-charts`.
 
-2. **`github-arc-runner`** — Registers a runner scale set with `https://github.com/sociaei`. Wraps `gha-runner-scale-set` v0.13.1. Kubernetes container mode (ephemeral pods, no DinD). Scaling: 1 min / 5 max.
+2. **`github-arc-runner`** — Registers a runner scale set with `https://github.com/sociaei`. Wraps `gha-runner-scale-set` v0.14.2. Kubernetes container mode (ephemeral pods, no DinD). Scaling: 0 min / 3 max.
 
 Both charts use OCI dependencies from GHCR (public, no auth required to pull).
 
@@ -50,11 +50,11 @@ runs-on: github-arc-runner
 
 ```
 cluster/apps/github-arc-controller/
-  Chart.yaml          # depends on gha-runner-scale-set-controller 0.13.1
+  Chart.yaml          # depends on gha-runner-scale-set-controller 0.14.2
   values.yaml         # minimal operator config
 
 cluster/apps/github-arc-runner/
-  Chart.yaml          # depends on gha-runner-scale-set 0.13.1
+  Chart.yaml          # depends on gha-runner-scale-set 0.14.2
   values.yaml         # githubConfigUrl, scaling, kubernetes mode
 
 cluster/groups/services/values.yaml  # add github-arc-controller + github-arc-runner entries
@@ -64,5 +64,5 @@ cluster/groups/services/values.yaml  # add github-arc-controller + github-arc-ru
 
 - **Kubernetes container mode** over DinD — no Docker build needs, avoids privileged namespace.
 - **GitHub App auth** over PAT — better security, higher rate limits, fine-grained permissions.
-- **1 min / 5 max scaling** — keeps one runner warm to avoid cold-start delays, caps at 5 for homelab resource limits.
-- **No persistent storage** — runners are ephemeral; workflow artifacts go to GitHub.
+- **0 min / 3 max scaling** — no idle runner burning homelab resources; accepts a cold start on the first job.
+- **Ephemeral work volume on `local-hostpath-ephemeral`** — job scratch is node-local hostpath, not Longhorn: replicating throwaway build data over the network buys nothing. Uses the `Delete` reclaim variant of the hostpath class so each job's PV and directory are reclaimed; the default `local-hostpath` is `Retain` (for CNPG) and would strand both per job. Workflow artifacts still go to GitHub.

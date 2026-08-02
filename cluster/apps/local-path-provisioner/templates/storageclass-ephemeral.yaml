@@ -1,0 +1,19 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-hostpath-ephemeral
+  annotations:
+    openebs.io/cas-type: local
+    cas.openebs.io/config: |
+      - name: StorageType
+        value: "hostpath"
+      - name: BasePath
+        value: {{ index .Values "localpv-provisioner" "hostpathClass" "basePath" | quote }}
+provisioner: openebs.io/local
+# Sibling of the chart-rendered local-hostpath class, differing only in reclaim
+# policy. Retain suits CNPG (keeps data if the PVC goes away); throwaway volumes
+# such as ARC runner work dirs need Delete, or every job strands a Released PV
+# and its directory under the base path.
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: false
