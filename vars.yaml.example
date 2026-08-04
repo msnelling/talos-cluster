@@ -64,6 +64,11 @@ renovate_github_app_id: "123456"
 # GitHub Actions Runner (ARC)
 github_app_id: "123456"
 github_app_installation_id: "12345678"
+# Pull credentials for the private ghcr.io/sociaei/socia-ci-runner-arc image.
+# Must be a CLASSIC PAT with read:packages -- GHCR does not accept fine-grained
+# tokens, and there is no Packages permission to grant on one.
+ghcr_pull_username: "your-github-username"
+ghcr_pull_token: "ghp_your_classic_pat_with_read_packages"
 
 # CloudNativePG
 cnpg_s3_access_key: "your-cnpg-s3-access-key"

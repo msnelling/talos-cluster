@@ -41,6 +41,12 @@ gha-runner-scale-set:
       # directly instead of transitively via the work PVC's nodeAffinity.
       nodeSelector:
         xmple.io/disk-type: nvme
+      # The image above is a private GHCR package. GHCR accepts only classic
+      # PATs, so this secret holds one scoped to read:packages -- created out of
+      # band by `task components:github-runner-pull-secret`, matching how
+      # github-arc-app is created rather than living in git.
+      imagePullSecrets:
+        - name: ghcr-pull
       securityContext:
         fsGroup: 1001
       containers:
@@ -49,7 +55,14 @@ gha-runner-scale-set:
         # add resources drops every key it does not respell — and the chart
         # supplies no fallback for these two. Re-check them on chart upgrade.
         - name: runner
-          image: ghcr.io/actions/actions-runner:latest
+          # Stock actions-runner plus build-essential. socia-app's `bun install`
+          # compiles better-sqlite3 via node-gyp, and the stock image ships
+          # python3 but no compiler -- every std job that installs dependencies
+          # (Type Check, Integration Tests, both UI builds) fails with
+          # `gyp ERR! not found: make` without this. Built from
+          # sociaei/socia-ci-runners runner-arc/Dockerfile, which changes
+          # nothing else: same runner user, same /home/runner/run.sh contract.
+          image: ghcr.io/sociaei/socia-ci-runner-arc:latest
           command: ["/home/runner/run.sh"]
           env:
             # Explicit rather than implied. Default mode does not require a job

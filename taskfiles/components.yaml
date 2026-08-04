@@ -290,6 +290,16 @@ tasks:
           --from-file=github_app_private_key=github-app-key.pem
           --dry-run=client -o yaml | kubectl apply -f -
 
+  github-runner-pull-secret:
+    desc: Create GHCR pull secret for the ARC runner image (namespace created by ArgoCD)
+    cmds:
+      - kubectl create secret docker-registry ghcr-pull
+          --namespace github-arc-runner
+          --docker-server=ghcr.io
+          --docker-username={{.GHCR_PULL_USERNAME}}
+          --docker-password={{.GHCR_PULL_TOKEN}}
+          --dry-run=client -o yaml | kubectl apply -f -
+
   cnpg-secrets:
     desc: Create CNPG S3 backup and pgAdmin secrets (namespace created by ArgoCD)
     cmds:
