@@ -85,6 +85,10 @@ vars:
     sh: yq '.github_app_id' vars.yaml
   GITHUB_APP_INSTALLATION_ID:
     sh: yq '.github_app_installation_id' vars.yaml
+  GHCR_PULL_USERNAME:
+    sh: yq '.ghcr_pull_username' vars.yaml
+  GHCR_PULL_TOKEN:
+    sh: yq '.ghcr_pull_token' vars.yaml
   # CNPG PostgreSQL
   CNPG_S3_ACCESS_KEY:
     sh: yq '.cnpg_s3_access_key' vars.yaml
