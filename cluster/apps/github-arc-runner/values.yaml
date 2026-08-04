@@ -70,17 +70,28 @@ gha-runner-scale-set:
             # infer the mode from the absence of a key.
             - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
               value: "false"
-          # Sized for the job now, not just the agent. Under kubernetes mode the
-          # work happened in a separate hook-created pod and this pod only
-          # polled, streamed logs and drove the hook — so the old 1 CPU / 2Gi
-          # cap was right then and would throttle every job on the tier now.
+          # Sized for the job, not the agent. Under kubernetes mode the work
+          # happened in a separate hook-created pod and this pod only polled,
+          # streamed logs and drove the hook.
+          #
+          # The limit restores the ceiling the deleted LimitRange used to give
+          # those job pods (4 CPU / 16Gi, GitHub's large-runner spec). Dropping
+          # it to 4Gi when the job moved into this pod OOM-killed Type Check at
+          # exit 137 — that job passes on a hosted ubuntu-latest with ~7GB, so
+          # 4Gi was never enough. 12Gi clears both that failure and the hosted
+          # baseline with room to spare.
+          #
+          # Requests stay small deliberately: they are what the scheduler
+          # reserves, and six runners reserving the limit would not fit
+          # alongside Longhorn, CNPG and the media stack. Burstable by design,
+          # same as the LimitRange it replaces.
           resources:
             requests:
               cpu: 500m
               memory: 1Gi
             limits:
-              cpu: "2"
-              memory: 4Gi
+              cpu: "4"
+              memory: 12Gi
           volumeMounts:
             - name: work
               mountPath: /home/runner/_work
