@@ -94,20 +94,66 @@ tasks:
       SCHEMATIC_ID:
         sh: curl -sX POST --data-binary @factory.yaml https://factory.talos.dev/schematics | jq -r '.id'
     cmds:
-      # Pre-flight: refuse to start while any Longhorn volume is degraded or
-      # faulted. Rebuild I/O during a drain is what collapses iSCSI sessions on
-      # the other nodes and cascades them NotReady (see
-      # docs/plans/2026-04-27-cilium-iscsi-cascade-postmortem.md and
-      # docs/plans/2026-07-10-cnpg-local-storage-design.md). Skips silently if
-      # the cluster is unreachable (fresh bootstrap has no Longhorn yet).
+      # Pre-flight: refuse to start while a Longhorn volume is degraded or
+      # faulted in a way this run would make worse. Rebuild I/O during a drain
+      # is what collapses iSCSI sessions on the other nodes and cascades them
+      # NotReady (see docs/plans/2026-04-27-cilium-iscsi-cascade-postmortem.md
+      # and docs/plans/2026-07-10-cnpg-local-storage-design.md).
+      #
+      # A volume is exempt only when every unhealthy replica is cleanly stopped
+      # on a node this run is about to reboot anyway, and a healthy replica
+      # survives on a node the run will not touch. A replica that is running
+      # but not yet healthy is still rebuilding and always blocks. Without that
+      # exemption an interrupted upgrade deadlocks the gate against itself: the
+      # drain stops the target's replicas, and the gate then refuses to run the
+      # upgrade that would restore them.
+      #
+      # With no CLI_ARGS every node is a target, so no untouched node can hold
+      # a survivor, the exemption cannot fire, and the check stays strict.
+      # Skips silently if the cluster is unreachable (fresh bootstrap has no
+      # Longhorn yet).
       - |
-        DEGRADED=$(kubectl get volumes.longhorn.io -n longhorn-system -o json 2>/dev/null \
-          | jq -r '[.items[] | select(.status.robustness=="degraded" or .status.robustness=="faulted")] | length' 2>/dev/null)
-        if [ -n "$DEGRADED" ] && [ "$DEGRADED" != "0" ]; then
-          echo "ERROR: $DEGRADED Longhorn volume(s) degraded/faulted — wait for rebuilds to finish before upgrading:"
-          kubectl get volumes.longhorn.io -n longhorn-system -o json \
-            | jq -r '.items[] | select(.status.robustness=="degraded" or .status.robustness=="faulted") | "  " + .metadata.name'
-          exit 1
+        TARGET_LIST="{{.CLI_ARGS}}"
+        TARGETS=$(printf '%s' "$TARGET_LIST" | tr -d "\"'" | tr ' ' '\n' | jq -Rc . | jq -sc 'map(select(length > 0))')
+        REPORT=$(kubectl get volumes.longhorn.io,replicas.longhorn.io -n longhorn-system -o json 2>/dev/null \
+          | jq --argjson targets "$TARGETS" '
+              def healthy_replica:
+                .status.currentState == "running" and .spec.failedAt == "" and .spec.healthyAt != "";
+              def rebuilding:
+                .status.currentState == "running" and (healthy_replica | not);
+              def on_target: .spec.nodeID as $n | ($targets | any(. == $n));
+              [.items[] | select(.kind == "Replica" and .spec.active == true)] as $reps
+              | [.items[] | select(.kind == "Volume"
+                  and (.status.robustness == "degraded" or .status.robustness == "faulted"))]
+              | map(
+                  . as $v
+                  | [$reps[] | select(.spec.volumeName == $v.metadata.name)] as $vr
+                  | [$vr[] | select(healthy_replica | not)] as $bad
+                  | [$vr[] | select(healthy_replica) | select(on_target | not)] as $survivors
+                  | {
+                      name: $v.metadata.name,
+                      down_on: ([$bad[].spec.nodeID] | unique | join(",")),
+                      survivors_on: ([$survivors[].spec.nodeID] | unique | join(",")),
+                      blocked: (
+                        $v.status.robustness == "faulted"
+                        or ([$vr[] | select(rebuilding)] | length > 0)
+                        or ([$bad[] | select(on_target | not)] | length > 0)
+                        or (($survivors | length) == 0)
+                      )
+                    })' 2>/dev/null)
+        if [ -n "$REPORT" ]; then
+          BLOCKED=$(echo "$REPORT" | jq -r '[.[] | select(.blocked)] | length')
+          EXEMPT=$(echo "$REPORT" | jq -r '[.[] | select(.blocked | not)] | length')
+          if [ "$BLOCKED" != "0" ]; then
+            echo "ERROR: $BLOCKED Longhorn volume(s) degraded/faulted — wait for rebuilds to finish before upgrading:"
+            echo "$REPORT" | jq -r '.[] | select(.blocked) | "  \(.name) (unhealthy replicas on: \(.down_on))"'
+            echo "Naming a single node (task day2:upgrade-talos -- <node>) exempts volumes degraded only by that node's own drain."
+            exit 1
+          fi
+          if [ "$EXEMPT" != "0" ]; then
+            echo "WARNING: $EXEMPT volume(s) degraded only because replicas on the target node(s) are stopped — proceeding:"
+            echo "$REPORT" | jq -r '.[] | "  \(.name) (down on: \(.down_on); healthy replica remains on: \(.survivors_on))"'
+          fi
         fi
       - task: _run-on-nodes
         vars:
