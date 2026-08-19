@@ -11,20 +11,22 @@ no published rollout date. A 6in4 tunnel from Hurricane Electric is the
 standard workaround: free, a routed /48, and a London PoP so the latency cost
 is small.
 
-The tunnel **cannot** live on the UCG. UniFi OS has no 6in4 support (static
-IPv6, SLAAC and DHCPv6-PD on WAN only), and the UCG series lacks the
-`on-boot-script` persistence that made hand-rolled tunnels survivable on the
-UDM/UDR. Anything configured by hand over SSH is erased by the next firmware
-update.
+A **6in4** tunnel cannot live on the UCG. UniFi OS has no 6in4 support, and the
+UCG series lacks the `on-boot-script` persistence that made hand-rolled tunnels
+survivable on the UDM/UDR — anything configured by hand over SSH is erased by
+the next firmware update. So the Pi terminates the tunnel.
 
-So the Pi terminates the tunnel and becomes the LAN's IPv6 router. The UCG
-stays the IPv4 router and is simply not part of the IPv6 path. The two stacks
-are independent, so nothing conflicts.
+Who *routes and firewalls* IPv6 for the LAN is a separate question, and UniFi
+Network 10.x has moved it. Work through *Where the tunnel and the routing live*
+before building anything: on 10.4+ the UCG may be able to do the routing, or
+possibly the whole job via its WireGuard client. This playbook documents the
+Pi-does-everything case; the others reuse most of it.
 
-**The consequence to internalise before starting: the UCG's firewall will
-never see an IPv6 packet.** Every LAN device gets a globally routable address
-with no NAT in front of it, and the Pi's nftables ruleset becomes the entire
-inbound perimeter for the whole network.
+**The consequence to internalise before starting: in the Pi-does-everything
+design, the UCG's firewall never sees an IPv6 packet.** Every LAN device gets a
+globally routable address with no NAT in front of it, and the Pi's nftables
+ruleset becomes the entire inbound perimeter for the whole network. Avoiding
+that is the main argument for letting the UCG route.
 
 ## Topology
 
@@ -53,49 +55,108 @@ IPv4 traffic goes to the UCG. IPv6 traffic goes to the Pi. Clients learn the
 IPv6 route from Router Advertisements, which are entirely separate from
 DHCPv4, so no client configuration is needed anywhere.
 
-## Why the Pi routes IPv6 rather than the UCG
+## Where the tunnel and the routing live
 
-The alternative is a static IPv6 route on the UCG pointing the HE prefix at
-the Pi, keeping UniFi as the IPv6 router and firewall. It is more attractive
-on paper — UniFi firewall rules, IDS/IPS, traffic stats all apply.
+Two decisions, not one: **who terminates the tunnel**, and **who routes and
+firewalls IPv6 for the LAN**. They have different answers, and the second one
+moved with UniFi Network 10.x.
 
-It is not the recommendation here:
+### What UniFi 10.x can and cannot do
 
-- IPv6 static-route support varies by UniFi Network version, and a `::/0`
-  route via a LAN host is an unusual configuration to depend on.
-- With the Pi on the same VLAN as clients, return traffic is asymmetric
-  through the UCG's stateful firewall and gets dropped. It needs a dedicated
-  transit VLAN between UCG and Pi to work at all.
+UniFi has added real IPv6 capability recently. Establish exactly how much
+before building anything, because the answer changes the architecture.
 
-If you later want UniFi to own IPv6, check whether your Network version
-offers IPv6 static routes and build the transit VLAN first. Until then, the Pi
-does the routing.
+| Version | Change | Relevance |
+|---|---|---|
+| 10.2 | An IPv6 address can be selected when creating a WireGuard **server** | IPv6 as *transport* — reaching the endpoint over an IPv6 WAN. Useless here: there is no IPv6 WAN |
+| 10.4 | "WireGuard VPN over IPv6"; improved validation of WireGuard **IPv6 MTU and MSS** | The MTU/MSS line hints at IPv6 as *payload*. You do not validate inner IPv6 MSS on a tunnel that cannot carry IPv6. A hint, not a confirmation |
+| 10.4 | Static and policy-based routes configurable from a centralised **Routing** section, with a unified FIB view | Makes the static-route architecture below a supported path rather than a hack |
 
-### What about UniFi's native WireGuard and BGP?
+Transport versus payload is the whole question. IPv6 as transport means the
+outer packet is IPv6 — irrelevant on a Virgin IPv4-only line. IPv6 as payload
+means the tunnel carries IPv6 traffic, which is what this project needs.
 
-Both look like they should help. Neither does.
+The Ubiquiti help centre still documents the WireGuard VPN Client's tunnel
+`Address` and `AllowedIPs` as IPv4-only, but that page predates 10.2 and the
+help centre lags releases. **Do not trust it, and do not trust this table
+either — check the running version.**
 
-**BGP is not a tunnel.** It exchanges routes over an IP adjacency that already
-exists; it cannot create encapsulation. UniFi's BGP feature (UniFi OS 4.1.13+
-on the UCG series) is an `frr.conf` upload with `bgpd=yes` — the routing
-daemon only. FRR does not create tunnel interfaces in any deployment; that is
-a kernel-level `ip link add ... type gre` job, which is exactly the
+### Three checks, ~5 minutes, in the UniFi UI
+
+These settle the architecture. Do them before Phase 0.
+
+1. **Settings → VPN → VPN Client.** Paste a WireGuard config whose `Address`
+   is an IPv6 address and whose `AllowedIPs` includes `::/0`. UniFi validates
+   pasted configs, so acceptance or rejection is a definitive answer without
+   connecting anything. A Route64 tunnel config is free to generate for this.
+2. **Settings → Routing → Static Routes.** Does the destination accept an IPv6
+   prefix? What can the next hop be — an address on a LAN, a VPN client
+   interface, or both?
+3. **Settings → Networks → [any network] → IPv6.** Which interface types are
+   offered, and does **Static** accept a prefix with no IPv6 on the WAN?
+
+### The three resulting architectures
+
+**A — UCG does everything. No Pi.** Requires check 1 to pass *and* check 2 to
+allow `::/0` via the VPN client. UCG runs a WireGuard client to a tunnelbroker
+that delegates a prefix (Route64 gives a routed /56 over WireGuard); LAN
+networks take **Static** IPv6 from it. Strictly the best outcome: no extra
+hardware, no SPOF, and the UCG firewall and IDS/IPS cover IPv6 natively.
+**Check for this first.** It may already have shipped.
+
+**B — Pi terminates the tunnel, UCG routes and firewalls.** Requires checks 2
+and 3 to pass. Needs a dedicated **transit VLAN** between UCG and Pi:
+
+- Transit VLAN, e.g. `2001:470:zzzz:99::/64` — UCG `::1`, Pi `::2`.
+- Each LAN network takes **Static** IPv6 from the /48 (`:1::1/64`,
+  `:20::1/64`, …). The UCG emits the RAs and is the clients' IPv6 gateway.
+- UCG static route: `::/0` via `2001:470:zzzz:99::2`.
+- Pi static route: `2001:470:zzzz::/48` via `2001:470:zzzz:99::1`.
+- The Pi keeps the tunnel and the keepalive but stops being a firewall.
+
+The transit VLAN is not optional. With the Pi on the same VLAN as clients,
+return traffic never traverses the UCG, the UCG's stateful firewall sees only
+half of each flow, and it starts issuing ICMPv6 redirects that some clients
+honour and some ignore.
+
+**The firewall caveat for B:** the UCG's IPv6 upstream is a LAN-side VLAN, not
+the WAN interface, so the default inbound protection that shields LANs from
+the internet does **not** apply to it. The zone-based firewall must be
+configured to treat the transit VLAN as external. Get this wrong and every LAN
+device is openly reachable — verify with an external `nmap -6` before
+considering it done.
+
+Security posture aside, B is better than C: UniFi firewall rules, IDS/IPS and
+traffic stats all cover IPv6.
+
+**C — Pi does everything.** The fallback if checks 2 or 3 fail, and what the
+rest of this playbook documents. Simplest to build, but the UCG is entirely
+uninvolved in IPv6 and the Pi's nftables ruleset is the whole perimeter.
+
+Phases 3–5 below are written for C. **B reuses Phase 3 unchanged** — the same
+tunnel, keepalive and endpoint updater — and replaces Phases 4 and 5 with
+UniFi configuration.
+
+### What about BGP?
+
+It looks like a native route to a tunnelbroker. It is not.
+
+**BGP is not a tunnel.** It exchanges routes over an IP adjacency that must
+already exist; it cannot create encapsulation. UniFi's BGP feature (UniFi OS
+4.1.13+ on the UCG series) is an `frr.conf` upload with `bgpd=yes` — the
+routing daemon only. FRR does not create tunnel interfaces in any deployment;
+that is a kernel-level `ip link add ... type gre` job, exactly the
 non-persistent shell territory the UCG locks down. A tunnelbroker's BGP
-offering runs *on top of* one of their tunnels, so it does not remove the
-requirement. It also generally assumes you hold your own ASN and PI space.
+offering runs *on top of* one of their tunnels, so it removes nothing. It also
+assumes you hold your own ASN and PI space.
 
-**The WireGuard VPN client cannot carry IPv6.** Tunnelling IPv6 inside it is
-not supported, with long-standing open feature requests. And even if it were,
-there is no path from a VPN client interface to the LANs: UniFi sources each
-network's IPv6 prefix from the **WAN** interface via DHCPv6-PD or static
-configuration. Nothing consumes a prefix delegated over a VPN client. That
-feature is built for policy-based routing of IPv4 through a commercial VPN.
+### The remaining gap
 
-**Re-check this periodically.** It is the part of this design most likely to
-age out. If Ubiquiti ships WireGuard IPv6 *together with* prefix assignment
-from a VPN client interface, the whole thing collapses to a UCG WireGuard
-client pointed at a tunnelbroker, with no Pi involved at all — strictly better
-than what is documented here. Worth scanning UniFi Network release notes for.
+No Ubiquiti documentation describes a LAN network consuming a **delegated
+prefix from a VPN client interface**. Prefix Delegation sources from the WAN.
+That is why architecture A depends on the **Static** LAN IPv6 path — you take
+the prefix the tunnelbroker gave you and configure it by hand, rather than
+expecting UniFi to learn it from the tunnel.
 
 ---
 
@@ -238,6 +299,9 @@ The tunnel /64 (`xxxx:yyyy`) is point-to-point between the Pi and HE. It is
 ---
 
 ## Phase 2 — UCG configuration
+
+This phase assumes architecture **C**. For **B**, configure the transit VLAN
+and per-network Static IPv6 instead, and skip Phases 4 and 5.
 
 1. **Settings → Networks →** each network **→ IPv6**: set to **None**. This
    stops the UCG emitting Router Advertisements that would compete with the
