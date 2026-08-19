@@ -61,81 +61,122 @@ Two decisions, not one: **who terminates the tunnel**, and **who routes and
 firewalls IPv6 for the LAN**. They have different answers, and the second one
 moved with UniFi Network 10.x.
 
-### What UniFi 10.x can and cannot do
+### Verified on UniFi Network 10.6.97 (UCG Fiber, 2026-08-19)
 
-UniFi has added real IPv6 capability recently. Establish exactly how much
-before building anything, because the answer changes the architecture.
+All three capability checks were run in the live UI. **All three pass.** The
+UCG can terminate the tunnel and route IPv6 itself — no Pi required.
 
-| Version | Change | Relevance |
-|---|---|---|
-| 10.2 | An IPv6 address can be selected when creating a WireGuard **server** | IPv6 as *transport* — reaching the endpoint over an IPv6 WAN. Useless here: there is no IPv6 WAN |
-| 10.4 | "WireGuard VPN over IPv6"; improved validation of WireGuard **IPv6 MTU and MSS** | The MTU/MSS line hints at IPv6 as *payload*. You do not validate inner IPv6 MSS on a tunnel that cannot carry IPv6. A hint, not a confirmation |
-| 10.4 | Static and policy-based routes configurable from a centralised **Routing** section, with a unified FIB view | Makes the static-route architecture below a supported path rather than a hack |
+**1. WireGuard VPN Client carries IPv6.** Settings → VPN → VPN Client → Create
+New → Setup: **Manual** exposes:
 
-Transport versus payload is the whole question. IPv6 as transport means the
-outer packet is IPv6 — irrelevant on a Virgin IPv4-only line. IPv6 as payload
-means the tunnel carries IPv6 traffic, which is what this project needs.
+| Field | Value |
+|---|---|
+| Tunnel IP → IPv6 Address | Accepts a GUA; netmask dropdown runs the full range, /64 selectable |
+| Server Address → IP / Hostname | "IPv4/v6 Address or Hostname" |
+| Advanced → IPv6 Maximum Segment Size | Auto / Custom / Off |
 
-The Ubiquiti help centre still documents the WireGuard VPN Client's tunnel
-`Address` and `AllowedIPs` as IPv4-only, but that page predates 10.2 and the
-help centre lags releases. **Do not trust it, and do not trust this table
-either — check the running version.**
+There is **no `AllowedIPs` field**. UniFi does not take raw WireGuard config in
+Manual mode — routing into the tunnel is expressed separately, in Routing.
 
-### Three checks, ~5 minutes, in the UniFi UI
+**2. IPv6 can be routed to the tunnel.** Settings → Routing → Create New Route
+→ **Static**:
 
-These settle the architecture. Do them before Phase 0.
+- Destination → Network accepts an "IPv4/v6 Subnet".
+- Next Hop accepts an "IPv4/v6 Address".
+- Choosing **Interface** instead of Next Hop opens a dropdown that lists
+  Internet (WAN1/WAN2), **VPN Client**, Site-to-Site VPN, and every Network.
 
-1. **Settings → VPN → VPN Client.** Paste a WireGuard config whose `Address`
-   is an IPv6 address and whose `AllowedIPs` includes `::/0`. UniFi validates
-   pasted configs, so acceptance or rejection is a definitive answer without
-   connecting anything. A Route64 tunnel config is free to generate for this.
-2. **Settings → Routing → Static Routes.** Does the destination accept an IPv6
-   prefix? What can the next hop be — an address on a LAN, a VPN client
-   interface, or both?
-3. **Settings → Networks → [any network] → IPv6.** Which interface types are
-   offered, and does **Static** accept a prefix with no IPv6 on the WAN?
+So `::/0` with Interface = the WireGuard VPN client is constructible. This is
+already proven for IPv4 on this box: a `0.0.0.0/0 → Mullvad Zurich (VPN,
+metric 50)` route is live.
 
-### The three resulting architectures
+**3. Networks take a static prefix and advertise it.** Settings → Networks →
+[network] → IPv6 → Interface Type offers **None / Prefix Delegation / Static**.
+Prefix Delegation is greyed out (it needs IPv6 on the WAN), but **Static** is
+selectable and exposes IPv6 Address + Netmask (default /64), Client Address
+Assignment **SLAAC** or DHCPv6, Auto DNS Server, **Router Advertisement (RA)**
+and RA Priority.
 
-**A — UCG does everything. No Pi.** Requires check 1 to pass *and* check 2 to
-allow `::/0` via the VPN client. UCG runs a WireGuard client to a tunnelbroker
-that delegates a prefix (Route64 gives a routed /56 over WireGuard); LAN
-networks take **Static** IPv6 from it. Strictly the best outcome: no extra
-hardware, no SPOF, and the UCG firewall and IDS/IPS cover IPv6 natively.
-**Check for this first.** It may already have shipped.
+That is the missing link: the UCG will emit RAs for a prefix you configure by
+hand, with no IPv6 upstream on the WAN at all.
 
-**B — Pi terminates the tunnel, UCG routes and firewalls.** Requires checks 2
-and 3 to pass. Needs a dedicated **transit VLAN** between UCG and Pi:
+### Consequence
 
-- Transit VLAN, e.g. `2001:470:zzzz:99::/64` — UCG `::1`, Pi `::2`.
-- Each LAN network takes **Static** IPv6 from the /48 (`:1::1/64`,
-  `:20::1/64`, …). The UCG emits the RAs and is the clients' IPv6 gateway.
-- UCG static route: `::/0` via `2001:470:zzzz:99::2`.
-- Pi static route: `2001:470:zzzz::/48` via `2001:470:zzzz:99::1`.
-- The Pi keeps the tunnel and the keepalive but stops being a firewall.
+**Architecture A is the design.** The Pi is not needed. The 6in4 material in
+Phases 1–5 below is retained only as the fallback if the UCG path fails in
+practice.
 
-The transit VLAN is not optional. With the Pi on the same VLAN as clients,
-return traffic never traverses the UCG, the UCG's stateful firewall sees only
-half of each flow, and it starts issuing ICMPv6 redirects that some clients
-honour and some ignore.
+### The design
 
-**The firewall caveat for B:** the UCG's IPv6 upstream is a LAN-side VLAN, not
-the WAN interface, so the default inbound protection that shields LANs from
-the internet does **not** apply to it. The zone-based firewall must be
-configured to treat the transit VLAN as external. Get this wrong and every LAN
-device is openly reachable — verify with an external `nmap -6` before
-considering it done.
+```
+Route64 r1-lon-uk (Telehouse, LONAP)
+  185.121.24.12:20090
+         │  WireGuard over IPv4  (UDP — Virgin's protocol-41 behaviour is moot)
+  Virgin Hub (modem mode) → UCG Fiber
+         │  wg tunnel  2a11:6c7:f06:9c::2/64   (peer ::1)
+         │  static route  ::/0 → Interface: Route64 VPN client
+         │
+  UCG routes + firewalls IPv6, emits RAs per network
+         │
+  8 VLANs, each a Static /64 out of 2a11:6c7:1400:9c00::/56
+```
 
-Security posture aside, B is better than C: UniFi firewall rules, IDS/IPS and
-traffic stats all cover IPv6.
+Live tunnel (created 2026-08-19): **tb34563**, roadwarrior mode — Route64 waits
+for the client to connect, so **Virgin's changing IPv4 needs no endpoint
+updater at all**. That removes a whole component versus the 6in4 design.
 
-**C — Pi does everything.** The fallback if checks 2 or 3 fail, and what the
-rest of this playbook documents. Simplest to build, but the UCG is entirely
-uninvolved in IPv6 and the Pi's nftables ruleset is the whole perimeter.
+| Value | |
+|---|---|
+| Endpoint | `185.121.24.12:20090` |
+| Tunnel link | `2a11:6c7:f06:9c::2/64`, peer `::1` |
+| Delegated prefix | `2a11:6c7:1400:9c00::/56` |
+| PersistentKeepalive | 15 |
+| Route64 AllowedIPs | `::/1, 8000::/1` (i.e. all of IPv6) |
 
-Phases 3–5 below are written for C. **B reuses Phase 3 unchanged** — the same
-tunnel, keepalive and endpoint updater — and replaces Phases 4 and 5 with
-UniFi configuration.
+### Address plan
+
+The /56 gives 256 /64s. Map the VLAN ID into the fourth hextet so nothing needs
+thinking about later:
+
+| Network | VLAN | IPv4 | IPv6 prefix |
+|---|---|---|---|
+| LAN | 1 | 10.1.1.0/24 | `2a11:6c7:1400:9c01::/64` |
+| IoT | 2 | 10.1.30.0/24 | `2a11:6c7:1400:9c02::/64` |
+| Guest | 3 | 192.168.3.0/24 | `2a11:6c7:1400:9c03::/64` |
+| Family | 4 | 192.168.4.0/24 | `2a11:6c7:1400:9c04::/64` |
+| DMZ | 5 | 192.168.5.0/24 | `2a11:6c7:1400:9c05::/64` |
+| Cilium-External | 50 | 192.168.50.0/24 | `2a11:6c7:1400:9c50::/64` |
+| Management | 100 | 10.1.100.0/24 | `2a11:6c7:1400:9c64::/64` |
+| Cilium-Internal | 200 | 10.1.200.0/24 | `2a11:6c7:1400:9cc8::/64` |
+
+The gateway address on each is `…::1`. VLANs 100 and 200 use hex `64` and `c8`
+because the hextet is hexadecimal — the alternative is decimal-looking labels
+that collide, so pick one convention and keep it.
+
+### ⚠️ This interacts with the existing Mullvad client
+
+The UCG currently has `0.0.0.0/0 → Mullvad Zurich` at **metric 50**, beating
+`0.0.0.0/0 → Internet 1` at metric 200. **All IPv4 already egresses via
+Mullvad.**
+
+Adding IPv6 via Route64 would make the two stacks exit in different places:
+IPv4 from a Mullvad address in Zurich, IPv6 from a Route64 address in London
+tied to this account. Dual-stack sites prefer IPv6, so **most traffic would
+stop using Mullvad**, and the two exits would be trivially correlatable.
+
+Decide before building:
+
+- **Keep Mullvad as the privacy boundary** — do not deploy Route64 to the
+  networks that ride Mullvad; scope IPv6 to Management, Cilium, DMZ. Or find an
+  IPv6 tunnel whose exit is Mullvad, which Mullvad does not offer
+  (see A.5).
+- **Accept the split** — fine if Mullvad is for BitTorrent rather than
+  general privacy, but be deliberate about it.
+- **Per-network policy** — give IPv6 only to networks that do not use Mullvad
+  for IPv4, keeping each network single-exit.
+
+This is a policy decision, not a technical one, so the playbook does not
+choose. But do not deploy A without making it.
 
 ### What about BGP?
 
@@ -300,8 +341,8 @@ The tunnel /64 (`xxxx:yyyy`) is point-to-point between the Pi and HE. It is
 
 ## Phase 2 — UCG configuration
 
-This phase assumes architecture **C**. For **B**, configure the transit VLAN
-and per-network Static IPv6 instead, and skip Phases 4 and 5.
+Phases 1–6 document the **6in4-on-the-Pi fallback**, kept in case the UCG path
+fails in practice. For the primary design, see *The design* above.
 
 1. **Settings → Networks →** each network **→ IPv6**: set to **None**. This
    stops the UCG emitting Router Advertisements that would compete with the
