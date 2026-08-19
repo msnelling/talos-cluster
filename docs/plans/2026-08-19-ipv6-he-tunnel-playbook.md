@@ -833,33 +833,87 @@ solely for HE.
 Use this if Phase 0 shows the protocol-41 cap, or if the NAT-conntrack
 dependency proves flaky in practice.
 
-A cheap VPS with a routed /64 (most providers hand one out free with the
-instance; some will route a /48 on request), reached over WireGuard from the
-Pi. WireGuard is UDP, so Virgin's protocol-41 handling is irrelevant, and it
-traverses NAT properly with a real keepalive rather than a conntrack
-side-effect.
+The idea is the same tunnel with a different encapsulation: WireGuard is UDP,
+so Virgin's protocol-41 handling becomes irrelevant, and it traverses NAT
+properly with a real keepalive rather than a conntrack side-effect.
 
-The shape:
+Everything downstream is **identical** — the same radvd config, the same
+nftables ruleset, the same staged rollout, the same uninstall. Only `WAN_IF`
+changes from `he-ipv6` to `wg0`, and the addressing comes from the new prefix.
 
-- VPS: WireGuard server, `net.ipv6.conf.all.forwarding=1`, and either a route
-  for the delegated prefix pointing down the tunnel or `ndppd` proxying
-  neighbour discovery if the provider gives an on-link /64 rather than a
-  routed one. Check which before choosing a provider — an on-link /64 is
-  noticeably more work.
-- Pi: WireGuard client with `PersistentKeepalive = 25`, holding a /64 from the
-  delegated prefix.
-- Everything downstream is **identical** — the same radvd config, the same
-  nftables ruleset, the same staged rollout, the same uninstall. Only
-  `WAN_IF` changes from `he-ipv6` to `wg0`, and the addressing comes from the
-  VPS's prefix.
+### A.1 The two shapes
 
-Trade-offs against HE: costs a few pounds a month, adds a hop, and the VPS is
-another thing to patch. In exchange it is robust, gives cleaner NAT traversal,
-and the prefix is far less likely to be geo-blocked than HE's.
+**Tunnelbroker over WireGuard.** Someone else runs the far end and delegates a
+prefix. Free, nothing to patch, no server to own. You depend on their uptime.
 
-Try HE first. Its London PoP keeps the latency penalty small, and it is free.
+**Your own VPS.** A cheap instance running `wg` with
+`net.ipv6.conf.all.forwarding=1` and a route for the delegated prefix pointing
+down the tunnel. More control, a machine to keep patched, a few pounds a month.
 
-### Why not Mullvad
+The Pi side is the same either way: a WireGuard client with
+`PersistentKeepalive = 25`, holding a /64 from the delegated prefix.
+
+### A.2 What actually matters when choosing
+
+Three criteria, in order. Most provider comparisons ignore all three.
+
+1. **Routed, not on-link.** A *routed* prefix is a static route and nothing
+   else. An *on-link* prefix means the upstream expects neighbour discovery on
+   the segment, so forwarding it onward needs `ndppd` proxying ND for
+   addresses that are not really there. It works, but it is a hack with an
+   extra daemon to fail. Ask the provider which they do — it is rarely stated
+   on the pricing page.
+2. **Prefix size ≥ /56.** A /64 is exactly one subnet. It cannot be carved
+   per-VLAN, so it breaks the "flat now, VLANs later" plan in the address plan
+   above. /56 gives 256 /64s; /48 gives 65,536.
+3. **Latency to the PoP.** This becomes the default route for every device on
+   the LAN, so the hop is paid on all IPv6 traffic. London is ~5–10ms;
+   Luxembourg or Frankfurt ~20–30ms. Noticeable, not fatal.
+
+### A.3 Options
+
+| Option | Cost | Prefix | Routed? | Nearest PoP | Verdict |
+|---|---|---|---|---|---|
+| **Hurricane Electric** (6in4) | Free | /48 | Yes | London | First choice — *if* Phase 0 passes |
+| **Route64** (AS212895) | Free | /56 | Yes | London | Best free fallback. WireGuard, so proto-41 is moot |
+| **BuyVM KVM Slice** (Luxembourg) | $2/mo | /48 free | Yes | Luxembourg | Best paid option. Genuinely routed, no `ndppd`, unmetered |
+| **Hetzner Cloud** | ~€4/mo | /64 | Verify | Falkenstein / Helsinki | Only one /64 — no room for VLANs |
+| **Vultr** | ~$3.50/mo | /64 | **On-link** | London | Needs `ndppd`. Reserved /64 add-on is also on-link |
+| **DigitalOcean** | ~$4/mo | **/124** | n/a | London | **Rule out.** 16 addresses total; cannot serve a LAN |
+
+**Recommended order:** HE → Route64 → BuyVM.
+
+### A.4 Notes on the shortlist
+
+**Route64** is a free non-profit tunnelbroker offering a routed /56 over
+WireGuard (also SIT, GRE, GRETAP, L2TPv3, VXLAN), with a London PoP and around
+200Mbit of transit. Signup is automated. It is the natural fallback: free like
+HE, but UDP-encapsulated, so it sidesteps the entire Virgin protocol-41
+question.
+
+The caveat is operational, not technical. It is essentially a one-person
+non-profit, support runs through Discord and can take days, and there is no
+SLA. That is a real consideration for something the whole LAN's IPv6 default
+route depends on — though the failure mode is graceful, since clients fall back
+to IPv4 the moment the RAs stop.
+
+**BuyVM** includes a **free routed /48** with every KVM Slice, starting at
+$2/mo unmetered, with rDNS delegation. A genuinely routed /48 at that price is
+unusual — most budget providers give an on-link /64 and leave you to `ndppd`.
+Luxembourg is the EU location, so expect ~20–30ms rather than London's ~5–10ms.
+You also get a general-purpose box out of it.
+
+**Hetzner and Vultr** both give a single /64, which is the blocking problem
+regardless of routing: no room to give each future VLAN its own /64. Vultr's is
+additionally on-link.
+
+**DigitalOcean** allocates a /124 — 16 addresses, no more available. It cannot
+delegate anything and is not a candidate.
+
+Try HE first. Its London PoP keeps the latency penalty small, it hands out a
+/48, and it is free.
+
+### A.5 Why not Mullvad
 
 A commercial privacy VPN cannot substitute for the VPS, even though the
 transport is the same WireGuard. Mullvad specifically:
@@ -881,11 +935,6 @@ That is a separate decision from wanting IPv6.
 The `db3000` gluetun/transmission Mullvad connection is unaffected by any of
 this and should stay as it is.
 
-When choosing a VPS for Appendix A, the question that matters is whether the
-provider **routes** the prefix to the instance or puts it **on-link**. Routed
-is a static route and nothing else; on-link needs `ndppd` proxying neighbour
-discovery and is noticeably more work.
-
 ---
 
 ## References
@@ -900,3 +949,6 @@ discovery and is noticeably more work.
 - [IPv6 tunnel broker setup — ArchWiki](https://wiki.archlinux.org/title/IPv6_tunnel_broker_setup)
 - [Mullvad — Removing the support for forwarded ports](https://mullvad.net/en/blog/removing-the-support-for-forwarded-ports)
 - [RFC 6724 — Default Address Selection for IPv6](https://www.rfc-editor.org/rfc/rfc6724)
+- [ROUTE64 — free IPv6 tunnelbroker and transit](https://www.route64.org/en)
+- [BuyVM — KVM Slices](https://buyvm.net/kvm-dedicated-server-slices/)
+- [DigitalOcean — IPv6 limits](https://docs.digitalocean.com/products/networking/ipv6/details/limits/)
