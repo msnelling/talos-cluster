@@ -71,6 +71,32 @@ If you later want UniFi to own IPv6, check whether your Network version
 offers IPv6 static routes and build the transit VLAN first. Until then, the Pi
 does the routing.
 
+### What about UniFi's native WireGuard and BGP?
+
+Both look like they should help. Neither does.
+
+**BGP is not a tunnel.** It exchanges routes over an IP adjacency that already
+exists; it cannot create encapsulation. UniFi's BGP feature (UniFi OS 4.1.13+
+on the UCG series) is an `frr.conf` upload with `bgpd=yes` — the routing
+daemon only. FRR does not create tunnel interfaces in any deployment; that is
+a kernel-level `ip link add ... type gre` job, which is exactly the
+non-persistent shell territory the UCG locks down. A tunnelbroker's BGP
+offering runs *on top of* one of their tunnels, so it does not remove the
+requirement. It also generally assumes you hold your own ASN and PI space.
+
+**The WireGuard VPN client cannot carry IPv6.** Tunnelling IPv6 inside it is
+not supported, with long-standing open feature requests. And even if it were,
+there is no path from a VPN client interface to the LANs: UniFi sources each
+network's IPv6 prefix from the **WAN** interface via DHCPv6-PD or static
+configuration. Nothing consumes a prefix delegated over a VPN client. That
+feature is built for policy-based routing of IPv4 through a commercial VPN.
+
+**Re-check this periodically.** It is the part of this design most likely to
+age out. If Ubiquiti ships WireGuard IPv6 *together with* prefix assignment
+from a VPN client interface, the whole thing collapses to a UCG WireGuard
+client pointed at a tunnelbroker, with no Pi involved at all — strictly better
+than what is documented here. Worth scanning UniFi Network release notes for.
+
 ---
 
 ## Prerequisites
@@ -944,6 +970,8 @@ this and should stay as it is.
 - [Virgin Media UK Move to Fix 20Mbps Speed Cap on IPv6 Tunnels](https://www.ispreview.co.uk/index.php/2020/08/virgin-media-uk-move-to-fix-20mbps-speed-cap-on-ipv6-tunnels.html)
 - [Quick Update for Virgin Media Speed Issues on IPv6 Tunnels](https://www.ispreview.co.uk/index.php/2020/09/quick-update-for-virgin-media-speed-issues-on-ipv6-tunnels.html)
 - [unifi-utilities — UCG Ultra discussion](https://github.com/orgs/unifi-utilities/discussions/626)
+- [UniFi — Border Gateway Protocol (BGP)](https://help.ui.com/hc/en-us/articles/16271338193559-UniFi-Border-Gateway-Protocol-BGP)
+- [Feature request — IPv6 support in UniFi WireGuard VPN](https://community.ui.com/questions/Feature-Request-IPv6-support-in-UniFi-WireGuard-VPN-configuration/29ef190f-87e9-4d08-8d91-237449ccdd1c)
 - [NetworkManager ip-tunnel settings](https://networkmanager.dev/docs/api/latest/settings-ip-tunnel.html)
 - [RFC 4890 — Filtering ICMPv6 Messages in Firewalls](https://www.rfc-editor.org/rfc/rfc4890)
 - [IPv6 tunnel broker setup — ArchWiki](https://wiki.archlinux.org/title/IPv6_tunnel_broker_setup)
