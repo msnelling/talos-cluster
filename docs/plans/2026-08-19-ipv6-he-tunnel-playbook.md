@@ -178,8 +178,17 @@ Two consequences:
    from a client, not by reading metrics off that screen.
 
 The cluster's actual Mullvad usage is the gluetun sidecar in `db3000`, which is
-unrelated to this gateway tunnel. The UCG client appears to be a leftover; it
-costs nothing but is worth removing to avoid this confusion recurring.
+unrelated to this gateway tunnel.
+
+**Leave the UCG Mullvad client in place.** It is idle by design, costs nothing,
+and the IPv6 work must not disturb it.
+
+One forward-looking caveat: if traffic is ever opted into Mullvad via a
+Policy-Based Route or the Device/Content Wizard, those networks would then
+egress IPv4 through Zurich while their IPv6 still exits via Route64 in London.
+Dual-stack sites prefer IPv6, so the Mullvad path would be bypassed for most
+traffic. If that day comes, either scope the IPv6 prefix away from those
+networks or accept the split deliberately — see [A.5](#a5-why-not-mullvad).
 
 ### What about BGP?
 
