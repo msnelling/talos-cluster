@@ -153,30 +153,33 @@ The gateway address on each is `…::1`. VLANs 100 and 200 use hex `64` and `c8`
 because the hextet is hexadecimal — the alternative is decimal-looking labels
 that collide, so pick one convention and keep it.
 
-### ⚠️ This interacts with the existing Mullvad client
+### The idle Mullvad VPN client
 
-The UCG currently has `0.0.0.0/0 → Mullvad Zurich` at **metric 50**, beating
-`0.0.0.0/0 → Internet 1` at metric 200. **All IPv4 already egresses via
-Mullvad.**
+The routing view shows `0.0.0.0/0 → Mullvad Zurich` at metric 50, beating
+`0.0.0.0/0 → Internet 1` at metric 200. Read as a single FIB with
+metric-based selection, that says all IPv4 egresses via Mullvad.
 
-Adding IPv6 via Route64 would make the two stacks exit in different places:
-IPv4 from a Mullvad address in Zurich, IPv6 from a Route64 address in London
-tied to this account. Dual-stack sites prefer IPv6, so **most traffic would
-stop using Mullvad**, and the two exits would be trivially correlatable.
+**It does not.** Measured from a LAN host, the public IPv4 is
+`92.239.242.145` (AS5089 Virgin Media) — traffic goes straight out of the WAN.
 
-Decide before building:
+UniFi's VPN Client is a **policy-based routing** feature. Its default route
+lives in the client's own routing table, and traffic only enters it when
+something opts in — a Policy-Based Route, or the Device/Content Wizard that
+generates one. On this gateway both wizards are **Off**, no policy-based route
+exists, and the tunnel reports **0 bps in both directions** against nine hours
+of uptime. It is connected and idle.
 
-- **Keep Mullvad as the privacy boundary** — do not deploy Route64 to the
-  networks that ride Mullvad; scope IPv6 to Management, Cilium, DMZ. Or find an
-  IPv6 tunnel whose exit is Mullvad, which Mullvad does not offer
-  (see A.5).
-- **Accept the split** — fine if Mullvad is for BitTorrent rather than
-  general privacy, but be deliberate about it.
-- **Per-network policy** — give IPv6 only to networks that do not use Mullvad
-  for IPv4, keeping each network single-exit.
+Two consequences:
 
-This is a policy decision, not a technical one, so the playbook does not
-choose. But do not deploy A without making it.
+1. **No conflict with the IPv6 plan.** Adding a Route64 client does not create
+   a split-exit problem, because Mullvad is not carrying anything.
+2. **The unified Routing view merges policy tables into one list.** A route
+   shown there is not necessarily in the main FIB. Verify egress by measuring
+   from a client, not by reading metrics off that screen.
+
+The cluster's actual Mullvad usage is the gluetun sidecar in `db3000`, which is
+unrelated to this gateway tunnel. The UCG client appears to be a leftover; it
+costs nothing but is worth removing to avoid this confusion recurring.
 
 ### What about BGP?
 
