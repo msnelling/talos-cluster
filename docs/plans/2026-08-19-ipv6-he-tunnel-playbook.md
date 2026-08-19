@@ -133,6 +133,98 @@ updater at all**. That removes a whole component versus the 6in4 design.
 | PersistentKeepalive | 15 |
 | Route64 AllowedIPs | `::/1, 8000::/1` (i.e. all of IPv6) |
 
+## As built — 2026-08-19
+
+Deployed and verified on UCG Fiber, UniFi Network 10.6.97. **Working.**
+
+### Results
+
+| Test | Result |
+|---|---|
+| Mac SLAAC address | `2a11:6c7:1400:9c01:f8c2:9c89:243d:c244` — global, no NAT |
+| Ping UCG gateway | 0% loss, ~1–13 ms |
+| Ping Route64 far end | 0% loss, **~19 ms** |
+| Ping Cloudflare `2606:4700:4700::1111` | 0% loss, ~17–47 ms |
+| 100 MB over IPv6 | 2.19 s = **47.9 MB/s (≈383 Mbit/s)**, no MTU stalls |
+| IPv4 egress | `92.239.242.145` — unchanged |
+
+WireGuard is UDP, so Virgin's protocol-41 history never came into it. The 6in4
+throughput gate in Phase 0 was not needed.
+
+### Steps
+
+**1. VPN client.** Settings → VPN → VPN Client → Create New. WireGuard, name
+`Route64 London`, Setup **Manual**, both wizards **Off**.
+
+| Field | Value |
+|---|---|
+| Private Key | from the Route64 config page |
+| Tunnel IP → IPv4 | *blank* |
+| Tunnel IP → IPv6 | `2a11:6c7:f06:9c::2` / **64** |
+| Server Address | `185.121.24.12` : `20090` |
+| Public Server Key | Route64's `PublicKey` |
+| Primary DNS Server | `10.1.1.53` (mandatory field — see gotchas) |
+| MTU | Custom **1420** |
+| MSS / IPv6 MSS | Auto |
+
+**2. Static route.** Settings → Routing → Create New Route → Static.
+Name `IPv6 default via Route64`, Device Gateway, Metric `10`,
+**Interface** = `Route64 London`, Destination Network **`2000::/3`**.
+
+**3. Firewall.** Nothing to do — verified only. UniFi placed the client in the
+**External** zone automatically (with Internet 1/2 and Mullvad), and the zone
+matrix has External → Internal = **Allow Return**, i.e. stateful, no
+unsolicited inbound.
+
+**4. Per-network IPv6.** Settings → Networks → [network] → IPv6 →
+Interface Type **Static**, address `…::1` from the plan below, netmask 64,
+Client Address Assignment **SLAAC**, **Router Advertisement (RA)** on.
+LAN (VLAN 1) done; the rest remain on **None**.
+
+### Gotchas found in the UI
+
+**`::/0` is rejected** by the static-route validator with *"Multicast IPv6
+addresses are not allowed"* — it misparses `::`. Use **`2000::/3`** (global
+unicast), which is arguably more correct anyway: it excludes link-local, ULA
+and multicast, none of which should traverse the tunnel. Route64's own
+`::/1` + `8000::/1` split is the alternative.
+
+**The netmask dropdown silently reverts.** Clicking the filtered option leaves
+it on the old value with no error — three attempts all failed. Use the
+keyboard: click the dropdown, type the value, **↓**, **⏎**.
+
+**Primary DNS Server is mandatory** on a VPN client; creation fails without it.
+Pointing it at the existing internal resolver avoids changing DNS behaviour.
+
+**UniFi auto-creates routes** when the client is created: `::/0` via the client
+(VPN, metric 52) and the connected `/64` (metric 256). Like the Mullvad IPv4
+default, these appear to live in the client's policy table, so the explicit
+static route is still required.
+
+**"Established" does not mean handshake.** UniFi reported Established
+immediately, but Route64 still showed `Your Endpoint: –` and a Looking Glass
+ping gave 100% loss. WireGuard only handshakes when there is traffic to send,
+and nothing routed into the tunnel until the static route and a network prefix
+existed. Do not debug this state — finish the build, then test.
+
+### Open question — keepalive
+
+The Manual form exposes no **PersistentKeepalive** field, and Route64 runs in
+roadwarrior mode, so it can never initiate. If UniFi does not set a keepalive
+internally, the peer endpoint may age out during quiet periods and unsolicited
+inbound would fail until the UCG next sends something. Outbound traffic
+self-heals it. Watch `Your Endpoint` on the Route64 tunnel page after a long
+idle spell before relying on inbound reachability.
+
+### Remaining work
+
+- Roll the other seven VLANs onto their prefixes from the plan below.
+- External `nmap -6` against a LAN client's GUA, run from off-network, to
+  confirm the stateful posture in practice rather than from config alone.
+- Rotate the Route64 private key (it was displayed on screen during the build).
+
+---
+
 ### Address plan
 
 The /56 gives 256 /64s. Map the VLAN ID into the fourth hextet so nothing needs
