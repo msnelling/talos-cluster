@@ -305,6 +305,170 @@ expecting UniFi to learn it from the tunnel.
 
 ---
 
+## Stable addressing and renumbering
+
+The Route64 /56 is bound to tunnel **tb34563** and is stable for its lifetime.
+It changes only if the tunnel is deleted and recreated — but plan for that,
+because with a free tunnelbroker it is a realistic event.
+
+### What is actually static
+
+Less than it looks. Clients get SLAAC and renumber themselves from the RA. The
+hand-configured surface is:
+
+| Static thing | Where | Count |
+|---|---|---|
+| Per-network gateway address | UniFi → Networks → IPv6 | 8 |
+| Tunnel address + static route | UniFi → VPN / Routing | 2 |
+| AAAA records | Cloudflare + internal DNS | as published |
+| keepalived VIPs | `keepalived.conf` on each node | per pair |
+| Any pinned host addresses | host config | see below |
+
+Everything else follows automatically.
+
+### Hosts — use IPv6 tokens, not static addresses
+
+A token pins the interface identifier while the prefix still comes from the RA.
+Renumber the prefix and every tokenised host follows on the next RA, keeping
+its suffix. Both host OSes here support it.
+
+**Ubuntu (netplan → systemd-networkd)** — `ipv6-address-token`, available since
+netplan 0.100, so any current Ubuntu has it. Mutually exclusive with
+`ipv6-address-generation`.
+
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: true
+      accept-ra: true
+      ipv6-address-token: "::53"
+      ipv6-privacy: false
+```
+
+**Raspberry Pi OS (NetworkManager)**
+
+```bash
+sudo nmcli connection modify 'Wired connection 1' \
+  ipv6.method auto \
+  ipv6.addr-gen-mode eui64 \
+  ipv6.token ::53 \
+  ipv6.ip6-privacy 0
+sudo nmcli connection up 'Wired connection 1'
+```
+
+**Privacy extensions will catch you out.** The token pins the *stable* address;
+RFC 4941 temporary addresses are separate, get random suffixes, and are
+*preferred for outbound*. Inbound to the token address works either way, but
+firewall rules or log correlation keyed on it silently miss outbound traffic.
+Netplan's `ipv6-privacy` already defaults to false; NetworkManager usually
+prefers temporary addresses, so `ipv6.ip6-privacy 0` is the one that matters on
+the Pi. Leave privacy extensions **on** for laptops and desktops, **off** on
+servers.
+
+```bash
+ip token get dev eth0
+ip -6 addr show dev eth0 scope global    # expect <prefix>::53, no "temporary"
+```
+
+**Pick tokens from a table, not from the IPv4 address.** The hextet is
+hexadecimal, so `10.1.1.100` → `::64` is the same trap that maps VLAN 100 to
+`:9c64::` in the address plan. Semantic values read better anyway: `::53` for
+DNS, `::80` for the load balancer.
+
+**No token support:** macOS, Windows, most appliances and IoT kit — they use
+random or EUI-64 identifiers. And Talos: IPv6 for the cluster means dual-stack
+in the machine config and Cilium, which is a separate project.
+
+### VIPs — keepalived
+
+Tokens do not help here. A VIP is assigned directly from config, so SLAAC never
+touches it, which makes VIPs the worst case in a renumber: a literal address
+duplicated on every node in the pair.
+
+**Never mix address families in `virtual_ipaddress`.** VRRP has no dual-stack
+mode. An IPv6 address there switches the instance to VRRP over IPv6, which
+requires VRRPv3; mix both and modern keepalived refuses to create the
+addresses. Older 1.2.x releases were laxer — blog posts showing it "working"
+are stale.
+
+**Do not use separate instances per family.** It works, but the two instances
+fail over independently, so the IPv4 VIP can sit on one node while the IPv6 VIP
+sits on the other.
+
+**Use `virtual_ipaddress_excluded`** — one instance, one failover decision.
+Despite the name, excluded VIPs *do* migrate on failover; "excluded" only means
+they are left out of the VRRP protocol exchange.
+
+```
+vrrp_instance VI_1 {
+    state MASTER
+    interface eth0
+    virtual_router_id 10
+    priority 100
+    advert_int 1
+
+    authentication {
+        auth_type PASS
+        auth_pass <secret>
+    }
+
+    virtual_ipaddress {
+        10.1.1.50/24
+    }
+
+    virtual_ipaddress_excluded {
+        2a11:6c7:1400:9c01::50/64
+        fd00:1400:9c01::50/64          # stable ULA — survives renumbering
+    }
+}
+```
+
+`virtual_ipaddress` stays IPv4-only, so VRRP still runs over IPv4 and the
+existing version and authentication keep working. Note that **VRRPv3 dropped
+authentication** (RFC 5798) — a pure-IPv6 instance needs `version 3` *and* the
+`authentication` block deleted, or keepalived warns and ignores it. The
+excluded approach avoids that entirely.
+
+Two smaller ones: IPv6 non-local bind is a separate sysctl
+(`net.ipv6.ip_nonlocal_bind=1`, or HAProxy's `transparent` on the IPv6 `bind`),
+and failover announces via unsolicited Neighbour Advertisements — multicast, so
+confirm convergence rather than assuming it on VLANs with aggressive multicast
+filtering.
+
+### ULA alongside GUA
+
+The durable pattern: every host holds a stable ULA that never changes *and* a
+GUA from the delegated prefix. Internal service-to-service references use the
+ULA and survive any renumber; only external reachability depends on the GUA.
+
+Generate a random /48 per RFC 4193 rather than picking `fd00::/8` by hand.
+**Do not collide with `fd67:9e0c:5fe2:494e::/64`** — that prefix is already on
+the LAN, advertised by the HomePods and Apple TVs acting as Thread/Matter
+border routers. They appear as additional RA sources at `pref=medium`; the UCG
+advertises `pref=high` and wins the default route, so they are harmless, but
+they are there.
+
+### DNS is the real answer
+
+Hosts get SLAAC, nothing references them numerically, and AAAA records absorb
+the renumber. Tokens and ULAs are for the cases where DNS is not available —
+bootstrap, firewall rules, keepalived config.
+
+### If the prefix does change
+
+1. Update the 8 per-network gateway addresses in UniFi.
+2. Update the VPN client tunnel address; the `2000::/3` static route is
+   prefix-independent and needs no change.
+3. Update AAAA records (Cloudflare and internal).
+4. Update keepalived `virtual_ipaddress_excluded` GUA lines; ULA lines stand.
+5. Tokenised hosts renumber themselves — nothing to do.
+6. Deprecate the old prefix first (see *Uninstall* step 1) rather than deleting
+   it, so clients do not sit on dead addresses.
+
+---
+
 ## Prerequisites
 
 Complete all of these before Phase 0.
