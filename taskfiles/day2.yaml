@@ -2,17 +2,33 @@ version: "3"
 
 vars:
   # Health gate shared by upgrade-talos and reboot. Waits for the node to rejoin
-  # Ready, then for every attached Longhorn volume to return to healthy. Rebuild
-  # I/O from the node that just came back is what collapses iSCSI sessions on the
-  # other nodes and cascades them NotReady, so no rolling operation may touch
-  # node N+1 until node N's replicas have finished rebuilding (see
+  # Ready, then for the cluster as a whole to be healthy, then for every attached
+  # Longhorn volume to return to healthy. Rebuild I/O from the node that just came
+  # back is what collapses iSCSI sessions on the other nodes and cascades them
+  # NotReady, so no rolling operation may touch node N+1 until node N's replicas
+  # have finished rebuilding (see
   # docs/plans/2026-04-27-cilium-iscsi-cascade-postmortem.md). Only enforced when
   # the caller also sets ABORT_ON_FAIL.
+  #
+  # A node reporting kube-Ready says only that its kubelet is posting status, which
+  # is a weak licence to reboot the next control plane node. `talosctl health` also
+  # covers apid, boot sequence completion, the control plane static pods and the
+  # control plane components across every node, so a peer that came back kube-Ready
+  # but is not actually serving holds the run instead of advancing it.
+  #
+  # Longhorn is given 40 minutes: a full node's replicas took ~22 minutes to rebuild
+  # after a drain on a three-node cluster, so the old 15 minute budget failed runs
+  # whose upgrade had in fact succeeded.
   NODE_HEALTH_GATE: |
     echo "Waiting for $NODE to become Ready..."
     kubectl wait --for=condition=Ready "node/$NODE" --timeout=600s
+    echo "Waiting for cluster health (control plane, boot sequence)..."
+    if ! talosctl health --context {{.CLUSTER_NAME}} --wait-timeout 10m; then
+      echo "ERROR: cluster health check failed after $NODE"
+      exit 1
+    fi
     echo "Waiting for Longhorn volumes to settle..."
-    for i in $(seq 1 90); do
+    for i in $(seq 1 240); do
       UNHEALTHY=$(kubectl get volumes.longhorn.io -n longhorn-system -o json \
         | jq -r '.items[] | select(.status.state=="attached" and .status.robustness!="healthy") | .metadata.name')
       if [ -z "$UNHEALTHY" ]; then
@@ -22,7 +38,7 @@ vars:
       echo "  waiting on: $(echo $UNHEALTHY | tr '\n' ' ')"
       sleep 10
     done
-    echo "ERROR: volumes still unhealthy after 15m"
+    echo "ERROR: volumes still unhealthy after 40m"
     exit 1
 
 tasks:
