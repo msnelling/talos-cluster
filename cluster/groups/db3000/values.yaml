@@ -30,6 +30,8 @@ apps:
     path: cluster/db3000/prowlarr
   - name: radarr
     path: cluster/db3000/radarr
+  - name: recyclarr
+    path: cluster/db3000/recyclarr
   - name: sonarr
     path: cluster/db3000/sonarr
   - name: tautulli
