@@ -1,0 +1,112 @@
+image:
+  registry: ghcr.io
+  repository: recyclarr/recyclarr
+  tag: "8.7.2"
+  pullPolicy: IfNotPresent
+
+# Runs weekly. Scores only affect new grabs and manual searches, so a
+# frequent sync buys nothing; this exists to pick up upstream regex fixes.
+schedule: "30 4 * * 0"
+
+existingSecret: recyclarr-api-keys
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+# Audio scores tuned for Apple TV + Sonos Arc Ultra. The Apple TV decodes
+# E-AC-3 JOC and outputs Dolby MAT over eARC with height intact, but cannot
+# decode TrueHD or DTS at all, so TRaSH's defaults (which rank TrueHD ATMOS
+# 5000 above DD+ ATMOS 3000, and DTS-X at 4500) are inverted here.
+#
+#   DD+ ATMOS         5000   height survives to the Arc Ultra
+#   ATMOS (undefined) 3000   codec unknown from the title, might be DD+
+#   TrueHD ATMOS      2000   has height, but the Apple TV cannot decode it
+#   DD+               1750   TRaSH default, no height
+#   TrueHD             500   no height and undecodable
+#   DTS-X              250   object audio, but no DTS support in this chain
+#   DTS-HD MA          200   same
+#
+# Every score is >= 0 and both profiles use cutoffFormatScore 0, so no
+# existing file drops below cutoff and nothing is re-downloaded automatically.
+config: |
+  radarr:
+    movies:
+      base_url: http://radarr.db3000.svc/radarr
+      api_key: !env_var RADARR_API_KEY
+      delete_old_custom_formats: false
+      custom_formats:
+        - trash_ids:
+            - 1af239278386be2919e1bcee0bde047e # DD+ ATMOS
+          assign_scores_to: &radarr_profiles
+            - name: Ultra-HD
+            - name: HD-1080p/UltraHD
+            - name: HD-1080p
+            - name: Any
+          score: 5000
+        - trash_ids:
+            - 417804f7f2c4308c1f4c5d380d4c4475 # ATMOS (undefined)
+          assign_scores_to: *radarr_profiles
+          score: 3000
+        - trash_ids:
+            - 496f355514737f7d83bf7aa4d24f8169 # TrueHD ATMOS
+          assign_scores_to: *radarr_profiles
+          score: 2000
+        - trash_ids:
+            - 185f1dd7264c4562b9022d963ac37424 # DD+
+          assign_scores_to: *radarr_profiles
+          score: 1750
+        - trash_ids:
+            - 3cafb66171b47f226146a0770576870f # TrueHD
+          assign_scores_to: *radarr_profiles
+          score: 500
+        - trash_ids:
+            - 2f22d89048b01681dde8afe203bf2e95 # DTS X
+          assign_scores_to: *radarr_profiles
+          score: 250
+        - trash_ids:
+            - dcf3ec6938fa32445f590a4da84256cd # DTS-HD MA
+          assign_scores_to: *radarr_profiles
+          score: 200
+
+  sonarr:
+    tv:
+      base_url: http://sonarr.db3000.svc/sonarr
+      api_key: !env_var SONARR_API_KEY
+      delete_old_custom_formats: false
+      custom_formats:
+        - trash_ids:
+            - 4232a509ce60c4e208d13825b7c06264 # DD+ ATMOS
+          assign_scores_to: &sonarr_profiles
+            - name: Ultra-HD
+            - name: HD-1080p/UltraHD
+            - name: HD-1080p
+            - name: Any
+          score: 5000
+        - trash_ids:
+            - b6fbafa7942952a13e17e2b1152b539a # ATMOS (undefined)
+          assign_scores_to: *sonarr_profiles
+          score: 3000
+        - trash_ids:
+            - 0d7824bb924701997f874e7ff7d4844a # TrueHD ATMOS
+          assign_scores_to: *sonarr_profiles
+          score: 2000
+        - trash_ids:
+            - 63487786a8b01b7f20dd2bc90dd4a477 # DD+
+          assign_scores_to: *sonarr_profiles
+          score: 1750
+        - trash_ids:
+            - 1808e4b9cee74e064dfae3f1db99dbfe # TrueHD
+          assign_scores_to: *sonarr_profiles
+          score: 500
+        - trash_ids:
+            - 9d00418ba386a083fbf4d58235fc37ef # DTS X
+          assign_scores_to: *sonarr_profiles
+          score: 250
+        - trash_ids:
+            - c429417a57ea8c41d57e6990a8b0033f # DTS-HD MA
+          assign_scores_to: *sonarr_profiles
+          score: 200
