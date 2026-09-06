@@ -299,10 +299,14 @@ def needs_replacement(items):
             codecs = sorted({c for s in audio if (c := object_codec(s))})
             if not codecs or any(is_atmos(s) for s in audio):
                 continue
+            # The year tells a remake apart from its original in the report.
+            title = m.get("title", "")
+            if m.get("type") == "movie" and m.get("year"):
+                title = f"{title} ({m['year']})"
             rows.append(
                 {
                     "type": m.get("type"),
-                    "title": m.get("title", ""),
+                    "title": title,
                     "show": m.get("grandparentTitle", ""),
                     "codec": "/".join(codecs),
                     "file": parts[0].get("file", "") if parts else "",
