@@ -58,3 +58,17 @@ tasks:
     cmds:
       - echo "=== {{.NODE_NAME}} ({{.NODE_IP}}) ==="
       - talosctl {{.TALOSCTL_CMD}} --insecure --nodes {{.NODE_IP}}
+
+  plex-audio-tracks:
+    desc: "Re-point Plex audio selection off TrueHD (usage: task utility:plex-audio-tracks [-- --apply])"
+    summary: |
+      tvOS cannot decode TrueHD, so a TrueHD selection either transcodes on the
+      cluster or falls back to a lossy 5.1 track. This picks the best playable
+      track instead, preferring E-AC-3 with Atmos so height reaches the Arc Ultra.
+
+      Updates Plex's database only — no media file is touched, and the selection
+      applies to the token owner's Plex account.
+
+      Runs as a dry run unless -- --apply is passed.
+    cmds:
+      - ./scripts/plex-audio-tracks.sh {{.CLI_ARGS}}

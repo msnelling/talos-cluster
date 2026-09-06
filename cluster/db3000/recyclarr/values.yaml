@@ -30,14 +30,44 @@ resources:
 #   DTS-X              250   object audio, but no DTS support in this chain
 #   DTS-HD MA          200   same
 #
-# Every score is >= 0 and both profiles use cutoffFormatScore 0, so no
-# existing file drops below cutoff and nothing is re-downloaded automatically.
+# Every score is >= 0 and the four profiles these are assigned to use
+# cutoffFormatScore 0, so no existing file drops below cutoff and nothing is
+# re-downloaded automatically. The streaming profile below is the exception,
+# and exists precisely to drive upgrades for titles moved onto it.
 config: |
   radarr:
     movies:
       base_url: http://radarr.db3000.svc/radarr
       api_key: !env_var RADARR_API_KEY
       delete_old_custom_formats: false
+
+      quality_profiles:
+        # Radarr compares quality tier before custom format score, so a WEB-DL
+        # is rejected as a downgrade against a Bluray-2160p file no matter how
+        # the audio scores. This guide profile puts Bluray-2160p, WEBDL-2160p
+        # and WEBRip-2160p in one quality group, which makes the scores below
+        # the deciding factor instead. Remux-2160p is excluded — remuxes carry
+        # TrueHD by definition.
+        #
+        # Recyclarr never assigns movies to a profile — do that in Radarr, one
+        # title at a time, when you want the streaming-compatible version.
+        - trash_id: e91c9adaca0231493f4af0d571b907f9  # [SQP] SQP-1 WEB (2160p)
+          name: Apple TV Atmos (2160p)
+          # Pulling the profile in by trash_id also syncs every custom format it
+          # scores — dozens of release-group tiers, HDR and streaming-service
+          # formats, not just the seven audio ones below. Its thresholds are
+          # therefore left at the guide's own minFormatScore 1000 and
+          # cutoffFormatScore 10000, which are calibrated for that whole set.
+          #
+          # Scores here come from TRaSH's streaming score set rather than the
+          # values further down: DD+ ATMOS 135, DD+ 125, and TrueHD, TrueHD
+          # ATMOS, DTS X and DTS-HD MA all -10000, so no release carrying those
+          # can clear the minimum. Assigning both score sources to one profile
+          # makes Recyclarr report "conflicting scores ... (first value wins)"
+          # and resolve them by declaration order, which is no way to pin a
+          # score.
+          score_set: sqp-1-web-2160p
+
       custom_formats:
         - trash_ids:
             - 1af239278386be2919e1bcee0bde047e # DD+ ATMOS
