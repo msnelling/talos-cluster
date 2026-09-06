@@ -22,3 +22,14 @@ resources:
     memory: 64Mi
   limits:
     memory: 256Mi
+
+# Phase 3: films the report lists are moved onto this profile and searched
+# once, but only when tagged in Radarr — the tag is the decision to replace
+# a disc remux with a WEB-DL. The API key comes from the Recyclarr secret.
+radarr:
+  url: http://radarr.db3000.svc/radarr
+  existingSecret: recyclarr-api-keys
+  profile: Apple TV Atmos (2160p)
+  tag: atmos-upgrade
+  search: true
+  maxMoves: 10

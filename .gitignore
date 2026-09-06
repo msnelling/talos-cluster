@@ -9,3 +9,6 @@ argocd-repo-key.pub
 **/Chart.lock
 node_modules/
 .worktrees/
+
+# Python bytecode from local script tests
+**/__pycache__/
