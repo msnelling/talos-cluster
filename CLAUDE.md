@@ -31,6 +31,7 @@ task components:runner-token     # Create Gitea runner registration token secret
 task components:github-runner-secret  # Create GitHub App secret for ARC runners (github-arc-runner namespace)
 task components:monitoring-secrets    # Create SMTP and Grafana admin secrets (monitoring namespace)
 task components:recyclarr-secret      # Create Recyclarr API key secret (db3000 namespace)
+task components:plex-secret           # Create Plex token secret for the plex-audio-tracks CronJob (db3000 namespace)
 ```
 
 Each Helm component task runs: `helm repo add` → `helm dependency build` → `helm upgrade --install` with `--force-conflicts` (required for Helm 4 SSA compatibility with ArgoCD).
@@ -81,7 +82,7 @@ task db:restore-verify  # Non-destructive DR test: restore to temp cluster, vali
 
 Tasks are split into domain-grouped files under `taskfiles/` with namespaced includes:
 - `taskfiles/setup.yaml` -- cluster provisioning (download, generate, patch, apply, bootstrap, kubeconfig)
-- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, argocd, gitea-secrets, cnpg-secrets, db3000-secrets, renovate-secret, recyclarr-secret; cnpg-role-secrets is internal, runs as dep of gitea-secrets/db3000-secrets)
+- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, argocd, gitea-secrets, cnpg-secrets, db3000-secrets, renovate-secret, recyclarr-secret, plex-secret; cnpg-role-secrets is internal, runs as dep of gitea-secrets/db3000-secrets)
 - `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, join-node, reboot, reset)
 - `taskfiles/database.yaml` -- CNPG PostgreSQL operations (status, backup, restore, psql)
 - `taskfiles/utility.yaml` -- diagnostics (status, dashboard, disks, links, plex-audio-tracks)
@@ -259,6 +260,10 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **Recyclarr needs its config directory writable** — it stores state, logs and the cloned TRaSH-Guides repo under `RECYCLARR_CONFIG_DIR`. Mounting the ConfigMap directly at `/config` fails with `Read-only file system: '/config/state'`. Mount an `emptyDir` at `/config` and `subPath` just `recyclarr.yml` into it.
 
+**Plex show sections list shows, not episodes.** `/library/sections/<id>/all` on a `type: show` section returns show objects, which carry no `Media`/`Part` — only episodes do, and they must be requested with `?type=4`. A script that walks `.Media[].Part[]` over the default listing inspects every show, finds nothing, and reports a confident zero. Batch stream detail with `/library/metadata/<id,id,...>` (200 keys per request keeps the URL short) rather than one request per item.
+
+**The `plex-audio-tracks` CronJob owns Plex's audio track selection** for the token owner's account. It runs nightly and reverts any manual TrueHD re-selection, which is intended for the Plex → Apple TV → Sonos Arc Ultra chain. `task utility:plex-audio-tracks` runs it on demand as a dry run; add `-- --apply` to commit. It refuses plans above `maxChanges` in `values.yaml` so a Plex API change cannot rewrite the library unattended, and `KubeJobFailed` pages on a failed run.
+
 **db3000 media apps use subpath routing** at `db3000.xmple.io/<app>`. Plex is the exception (`plex.xmple.io`) because it cannot serve from a subpath.
 
 **Gitea chart templates `targetPort` from `gitea.config.server.HTTP_PORT`**, not from `service.http.targetPort`. This value must be explicitly set in the wrapper values or the Service renders with an empty targetPort that fails schema validation.
@@ -300,5 +305,6 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 | `alertmanager-smtp` | monitoring | `task components:monitoring-secrets` (from vars.yaml) |
 | `grafana-admin` | monitoring | `task components:monitoring-secrets` (from vars.yaml) |
 | `recyclarr-api-keys` | db3000 | `task components:recyclarr-secret` (reads API keys from the running Radarr/Sonarr pods) |
+| `plex-token` | db3000 | `task components:plex-secret` (reads `PlexOnlineToken` from the running Plex pod) |
 
 Generate the deploy key with `ssh-keygen -t ed25519 -f argocd-repo-key -N ""` and add the public key as a read-only deploy key in GitHub repo settings.

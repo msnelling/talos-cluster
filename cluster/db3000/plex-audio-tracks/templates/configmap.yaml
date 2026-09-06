@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "plex-audio-tracks.labels" . | nindent 4 }}
+data:
+  plex_audio_tracks.py: |
+    {{- .Files.Get "files/plex_audio_tracks.py" | nindent 4 }}

@@ -60,15 +60,24 @@ tasks:
       - talosctl {{.TALOSCTL_CMD}} --insecure --nodes {{.NODE_IP}}
 
   plex-audio-tracks:
-    desc: "Re-point Plex audio selection off TrueHD (usage: task utility:plex-audio-tracks [-- --apply])"
+    desc: "Run the Plex audio track job now (usage: task utility:plex-audio-tracks [-- --apply])"
+    deps: [":_require-yq"]
     summary: |
-      tvOS cannot decode TrueHD, so a TrueHD selection either transcodes on the
-      cluster or falls back to a lossy 5.1 track. This picks the best playable
-      track instead, preferring E-AC-3 with Atmos so height reaches the Arc Ultra.
-
-      Updates Plex's database only — no media file is touched, and the selection
-      applies to the token owner's Plex account.
-
-      Runs as a dry run unless -- --apply is passed.
+      Creates a one-off Job from the plex-audio-tracks CronJob and prints its
+      log. Without -- --apply the Job runs with APPLY=false, so it prints the
+      plan and changes nothing. The CronJob itself applies nightly.
     cmds:
-      - ./scripts/plex-audio-tracks.sh {{.CLI_ARGS}}
+      - |
+        NAME="plex-audio-tracks-manual-$(date +%s)"
+        kubectl create job -n db3000 --from=cronjob/plex-audio-tracks "${NAME}" --dry-run=client -o yaml \
+          | if [ "{{.CLI_ARGS}}" = "--apply" ]; then cat; else
+              yq '(.spec.template.spec.containers[0].env[] | select(.name == "APPLY")).value = "false"'
+            fi \
+          | kubectl apply -f - >/dev/null
+        until kubectl get job -n db3000 "${NAME}" -o jsonpath='{.status.succeeded}{.status.failed}' | grep -q .; do
+          sleep 3
+        done
+        kubectl logs -n db3000 "job/${NAME}" --all-containers
+        SUCCEEDED=$(kubectl get job -n db3000 "${NAME}" -o jsonpath='{.status.succeeded}')
+        kubectl delete job -n db3000 "${NAME}" --wait=false >/dev/null
+        [ "${SUCCEEDED}" = "1" ]
