@@ -1,0 +1,8 @@
+# Drop the DHCP-supplied search domain (xmple.io) from the node resolver.
+# Pods inherit it with ndots:5, so every external lookup first asks for
+# <name>.xmple.io and multiplies the cluster's DNS traffic several times
+# over; musl-based images also stop at that NOERROR/empty answer and report
+# "no usable address" for a perfectly resolvable name.
+machine:
+  network:
+    disableSearchDomain: true

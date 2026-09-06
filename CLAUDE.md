@@ -214,6 +214,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **Gateway listener ports must be container ports (8000/8443), not service ports (80/443).** Traefik maps entrypoints by container port internally.
 
+**Nodes must not inherit the DHCP search domain** (`patches/dns.yaml`, `machine.network.disableSearchDomain: true`). Pods copy the node's search list with `ndots:5`, so a leaked `xmple.io` suffix makes every external lookup query `<name>.xmple.io` first — several extra upstream queries per resolution, enough to trip a LAN resolver's rate limit, and musl images treat that empty NOERROR as a final "no usable address". Applied with `task reconfigure`; pods created before the change keep the old search list until restarted.
+
 **Cilium on Talos requires KubePrism** (`k8sServiceHost: localhost`, `k8sServicePort: 7445`) because the API server isn't network-routable during CNI bootstrap.
 
 **cert-manager Gateway API support** requires file-based `ControllerConfiguration` with `enableGatewayAPI: true` — the feature gate approach is deprecated.
