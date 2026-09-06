@@ -214,6 +214,10 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **Gateway listener ports must be container ports (8000/8443), not service ports (80/443).** Traefik maps entrypoints by container port internally.
 
+**`task reconfigure` re-pins the Kubernetes images from `vars.yaml`.** The base config under `generated/` carries the version it was generated with, and `day2:upgrade-k8s` never rewrites it, so without the re-pin a reconfigure months later would roll every node back to the old kubelet and control plane. Keep `kubernetes_version` in `vars.yaml` in step with the live cluster (`kubectl get nodes`) and check `talosctl apply-config --dry-run` shows only the change you intended.
+
+**Nodes must not inherit the DHCP search domain** (`patches/dns.yaml`, a `ResolverConfig` document with `searchDomains.domains: [cluster.local]`). Pods copy the node's search list with `ndots:5`, so a leaked `xmple.io` suffix makes every external lookup query `<name>.xmple.io` first — several extra upstream queries per resolution, enough to trip a LAN resolver's rate limit, and musl images treat that empty NOERROR as a final "no usable address". The override must be non-empty: Talos drops `domains: []` on write (siderolabs/talos#14263) and the old `machine.network.disableSearchDomain` only covers the hostname-derived suffix. `cluster.local` is already in every pod's list and kubelet de-duplicates it. Applied with `task reconfigure` (no reboot); pods created before the change keep the old search list until restarted.
+
 **Cilium on Talos requires KubePrism** (`k8sServiceHost: localhost`, `k8sServicePort: 7445`) because the API server isn't network-routable during CNI bootstrap.
 
 **cert-manager Gateway API support** requires file-based `ControllerConfiguration` with `enableGatewayAPI: true` — the feature gate approach is deprecated.
