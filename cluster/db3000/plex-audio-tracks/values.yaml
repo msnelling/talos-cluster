@@ -29,7 +29,7 @@ resources:
 radarr:
   url: http://radarr.db3000.svc/radarr
   existingSecret: recyclarr-api-keys
-  profile: Apple TV Atmos (2160p)
+  profile: Apple TV Atmos (1080p/2160p)
   tag: atmos-upgrade
   search: true
   maxMoves: 10

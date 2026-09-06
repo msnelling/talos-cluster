@@ -52,7 +52,7 @@ config: |
         # Recyclarr never assigns movies to a profile — do that in Radarr, one
         # title at a time, when you want the streaming-compatible version.
         - trash_id: e91c9adaca0231493f4af0d571b907f9  # [SQP] SQP-1 WEB (2160p)
-          name: Apple TV Atmos (2160p)
+          name: Apple TV Atmos (1080p/2160p)
           # Pulling the profile in by trash_id also syncs every custom format it
           # scores — dozens of release-group tiers, HDR and streaming-service
           # formats, not just the seven audio ones below. Its thresholds are
