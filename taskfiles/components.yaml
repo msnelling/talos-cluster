@@ -396,3 +396,28 @@ tasks:
           RADARR_API_KEY: "${RADARR_KEY}"
           SONARR_API_KEY: "${SONARR_KEY}"
         EOF
+
+  plex-secret:
+    desc: Create Plex token secret for the plex-audio-tracks CronJob (reads it from the running Plex pod)
+    cmds:
+      - |
+        POD=$(kubectl get pod -n db3000 -l app.kubernetes.io/name=plex --field-selector status.phase=Running -o jsonpath='{.items[*].metadata.name}' | awk '{print $1}')
+        if [ -z "${POD}" ]; then
+          echo "No running Plex pod in db3000 — start it before running this task" >&2
+          exit 1
+        fi
+        TOKEN=$(kubectl exec -n db3000 "${POD}" -- sh -c 'p=$(find /config -name Preferences.xml | head -1); sed -n "s/.*PlexOnlineToken=\"\([^\"]*\)\".*/\1/p" "$p"')
+        if [ -z "${TOKEN}" ]; then
+          echo "Could not read PlexOnlineToken from Preferences.xml" >&2
+          exit 1
+        fi
+        cat <<EOF | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: plex-token
+          namespace: db3000
+        type: Opaque
+        stringData:
+          PLEX_TOKEN: "${TOKEN}"
+        EOF

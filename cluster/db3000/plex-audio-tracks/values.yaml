@@ -1,0 +1,24 @@
+image:
+  registry: docker.io
+  repository: python
+  tag: "3.13.15-alpine3.24"
+  pullPolicy: IfNotPresent
+
+# After the overnight import window, so new grabs are fixed before anyone
+# watches them.
+schedule: "0 5 * * *"
+timeZone: Europe/London
+
+plexUrl: http://plex.db3000.svc:32400
+existingSecret: plex-token
+
+# Refuse to apply a plan larger than this. A runaway plan is more likely to
+# mean Plex changed shape than that the library did, and this runs unattended.
+maxChanges: 50
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi

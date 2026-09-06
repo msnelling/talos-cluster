@@ -26,6 +26,8 @@ apps:
     path: cluster/db3000/nzbget
   - name: plex
     path: cluster/db3000/plex
+  - name: plex-audio-tracks
+    path: cluster/db3000/plex-audio-tracks
   - name: prowlarr
     path: cluster/db3000/prowlarr
   - name: radarr

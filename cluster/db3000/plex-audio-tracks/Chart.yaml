@@ -1,0 +1,4 @@
+apiVersion: v2
+name: plex-audio-tracks
+version: 0.1.0
+description: Nightly job that points Plex audio selection away from TrueHD for the Apple TV
