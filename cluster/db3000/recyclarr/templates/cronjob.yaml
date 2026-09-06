@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "recyclarr.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      # The first run clones the TRaSH-Guides repo before syncing.
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            {{- include "recyclarr.labels" . | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          containers:
+            - name: recyclarr
+              image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args: ["sync"]
+              env:
+                - name: RECYCLARR_CONFIG_DIR
+                  value: /config
+                - name: TZ
+                  value: Europe/London
+              envFrom:
+                - secretRef:
+                    name: {{ .Values.existingSecret }}
+              volumeMounts:
+                # Recyclarr writes state, logs and the cloned guide repo into
+                # its config dir, so that has to be writable; only the config
+                # file itself comes from the ConfigMap.
+                - name: state
+                  mountPath: /config
+                - name: config
+                  mountPath: /config/recyclarr.yml
+                  subPath: recyclarr.yml
+                  readOnly: true
+              resources:
+                {{- toYaml .Values.resources | nindent 16 }}
+          volumes:
+            - name: state
+              emptyDir: {}
+            - name: config
+              configMap:
+                name: {{ .Release.Name }}-config

@@ -30,6 +30,7 @@ task components:renovate-secret  # Create Renovate GitHub App secret
 task components:runner-token     # Create Gitea runner registration token secret (gitea-runner namespace)
 task components:github-runner-secret  # Create GitHub App secret for ARC runners (github-arc-runner namespace)
 task components:monitoring-secrets    # Create SMTP and Grafana admin secrets (monitoring namespace)
+task components:recyclarr-secret      # Create Recyclarr API key secret (db3000 namespace)
 ```
 
 Each Helm component task runs: `helm repo add` → `helm dependency build` → `helm upgrade --install` with `--force-conflicts` (required for Helm 4 SSA compatibility with ArgoCD).
@@ -80,7 +81,7 @@ task db:restore-verify  # Non-destructive DR test: restore to temp cluster, vali
 
 Tasks are split into domain-grouped files under `taskfiles/` with namespaced includes:
 - `taskfiles/setup.yaml` -- cluster provisioning (download, generate, patch, apply, bootstrap, kubeconfig)
-- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, argocd, gitea-secrets, cnpg-secrets, db3000-secrets, renovate-secret; cnpg-role-secrets is internal, runs as dep of gitea-secrets/db3000-secrets)
+- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, argocd, gitea-secrets, cnpg-secrets, db3000-secrets, renovate-secret, recyclarr-secret; cnpg-role-secrets is internal, runs as dep of gitea-secrets/db3000-secrets)
 - `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, join-node, reboot, reset)
 - `taskfiles/database.yaml` -- CNPG PostgreSQL operations (status, backup, restore, psql)
 - `taskfiles/utility.yaml` -- diagnostics (status, dashboard, disks, links)
@@ -252,6 +253,10 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **Talos enforces `baseline` PodSecurity by default on all namespaces.** Components needing privileged access (Longhorn, etc.) require a namespace template with `pod-security.kubernetes.io/enforce: privileged` label.
 
+**Recyclarr fails silently in two ways, both exiting 0.** A duplicate instance name across the `radarr:` and `sonarr:` blocks (e.g. both called `main`) makes it discard the *entire* config and log only `Found 0 config files with 0 Radarr and 0 Sonarr instances` — the CronJob looks healthy while doing nothing. A quality profile name that doesn't exist in the target app logs a `[WRN]` and skips those scores. Validate any config change with `recyclarr sync --preview` before merging and read the output: `Processing <service> server <instance>` must appear for both, with no `[WRN]`.
+
+**Recyclarr needs its config directory writable** — it stores state, logs and the cloned TRaSH-Guides repo under `RECYCLARR_CONFIG_DIR`. Mounting the ConfigMap directly at `/config` fails with `Read-only file system: '/config/state'`. Mount an `emptyDir` at `/config` and `subPath` just `recyclarr.yml` into it.
+
 **db3000 media apps use subpath routing** at `db3000.xmple.io/<app>`. Plex is the exception (`plex.xmple.io`) because it cannot serve from a subpath.
 
 **Gitea chart templates `targetPort` from `gitea.config.server.HTTP_PORT`**, not from `service.http.targetPort`. This value must be explicitly set in the wrapper values or the Service renders with an empty targetPort that fails schema validation.
@@ -292,5 +297,6 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 | `github-arc-app` | github-arc-runner | `task components:github-runner-secret` (from vars.yaml + `github-app-key.pem` file) |
 | `alertmanager-smtp` | monitoring | `task components:monitoring-secrets` (from vars.yaml) |
 | `grafana-admin` | monitoring | `task components:monitoring-secrets` (from vars.yaml) |
+| `recyclarr-api-keys` | db3000 | `task components:recyclarr-secret` (reads API keys from the running Radarr/Sonarr pods) |
 
 Generate the deploy key with `ssh-keygen -t ed25519 -f argocd-repo-key -N ""` and add the public key as a read-only deploy key in GitHub repo settings.

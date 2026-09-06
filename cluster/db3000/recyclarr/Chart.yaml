@@ -1,0 +1,4 @@
+apiVersion: v2
+name: recyclarr
+version: 0.1.0
+description: Syncs TRaSH-Guides audio custom formats into Radarr and Sonarr

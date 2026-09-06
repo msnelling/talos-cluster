@@ -367,3 +367,32 @@ tasks:
           --from-literal=RENOVATE_GITHUB_APP_ID={{.RENOVATE_GITHUB_APP_ID}}
           --from-file=RENOVATE_GITHUB_APP_KEY=renovate-app-key.pem
           --dry-run=client -o yaml | kubectl apply -f -
+
+  recyclarr-secret:
+    desc: Create Recyclarr API key secret (reads keys from the running Radarr/Sonarr pods)
+    cmds:
+      - |
+        for APP in radarr sonarr; do
+          POD=$(kubectl get pod -n db3000 -l "app.kubernetes.io/name=${APP}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+          if [ -z "${POD}" ]; then
+            echo "No running ${APP} pod in db3000 — start it before running this task" >&2
+            exit 1
+          fi
+          KEY=$(kubectl exec -n db3000 "${POD}" -- sh -c 'grep -o "<ApiKey>[^<]*" /config/config.xml | cut -d">" -f2')
+          if [ -z "${KEY}" ]; then
+            echo "Could not read the ${APP} API key from /config/config.xml" >&2
+            exit 1
+          fi
+          if [ "${APP}" = "radarr" ]; then RADARR_KEY="${KEY}"; else SONARR_KEY="${KEY}"; fi
+        done
+        cat <<EOF | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: recyclarr-api-keys
+          namespace: db3000
+        type: Opaque
+        stringData:
+          RADARR_API_KEY: "${RADARR_KEY}"
+          SONARR_API_KEY: "${SONARR_KEY}"
+        EOF
