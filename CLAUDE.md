@@ -84,7 +84,7 @@ Tasks are split into domain-grouped files under `taskfiles/` with namespaced inc
 - `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, argocd, gitea-secrets, cnpg-secrets, db3000-secrets, renovate-secret, recyclarr-secret; cnpg-role-secrets is internal, runs as dep of gitea-secrets/db3000-secrets)
 - `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, join-node, reboot, reset)
 - `taskfiles/database.yaml` -- CNPG PostgreSQL operations (status, backup, restore, psql)
-- `taskfiles/utility.yaml` -- diagnostics (status, dashboard, disks, links)
+- `taskfiles/utility.yaml` -- diagnostics (status, dashboard, disks, links, plex-audio-tracks)
 
 Root `Taskfile.yaml` holds global vars, shared precondition helpers (`_require-nodes`, `_require-helm`), and top-level orchestration tasks (`setup`, `reconfigure`).
 
@@ -254,6 +254,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 **Talos enforces `baseline` PodSecurity by default on all namespaces.** Components needing privileged access (Longhorn, etc.) require a namespace template with `pod-security.kubernetes.io/enforce: privileged` label.
 
 **Recyclarr fails silently in two ways, both exiting 0.** A duplicate instance name across the `radarr:` and `sonarr:` blocks (e.g. both called `main`) makes it discard the *entire* config and log only `Found 0 config files with 0 Radarr and 0 Sonarr instances` — the CronJob looks healthy while doing nothing. A quality profile name that doesn't exist in the target app logs a `[WRN]` and skips those scores. Validate any config change with `recyclarr sync --preview` before merging and read the output: `Processing <service> server <instance>` must appear for both, with no `[WRN]`.
+
+**Pulling a Recyclarr `quality_profiles` entry in by `trash_id` also syncs every custom format that profile scores** — the SQP-1 WEB profile added 57 formats beyond the seven listed in `custom_formats`. They are scored only on the guide profile (0 elsewhere), so existing profiles are unaffected, but it means the profile's `minFormatScore`/`cutoffFormatScore` are calibrated for that whole set. Do not override them to suit a smaller hand-picked format list — a release-group tier alone contributes 1700, so a threshold sized for a few audio formats lets unwanted releases through. Leave the guide's values unless you have re-derived them against the full set.
 
 **Recyclarr needs its config directory writable** — it stores state, logs and the cloned TRaSH-Guides repo under `RECYCLARR_CONFIG_DIR`. Mounting the ConfigMap directly at `/config` fails with `Read-only file system: '/config/state'`. Mount an `emptyDir` at `/config` and `subPath` just `recyclarr.yml` into it.
 

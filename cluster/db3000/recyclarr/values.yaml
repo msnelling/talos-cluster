@@ -38,6 +38,32 @@ config: |
       base_url: http://radarr.db3000.svc/radarr
       api_key: !env_var RADARR_API_KEY
       delete_old_custom_formats: false
+
+      quality_profiles:
+        # Radarr compares quality tier before custom format score, so a WEB-DL
+        # is rejected as a downgrade against a Bluray-2160p file no matter how
+        # the audio scores. This guide profile puts Bluray-2160p, WEBDL-2160p
+        # and WEBRip-2160p in one quality group, which makes the scores below
+        # the deciding factor instead. Remux-2160p is excluded — remuxes carry
+        # TrueHD by definition.
+        #
+        # No movie is assigned to this profile. Move titles onto it in Radarr
+        # when you want the streaming-compatible version.
+        - trash_id: e91c9adaca0231493f4af0d571b907f9  # [SQP] SQP-1 WEB (2160p)
+          name: Apple TV Atmos (2160p)
+          # Scores on this profile come from TRaSH's own streaming score set,
+          # not the values further down — mixing the two makes Recyclarr fall
+          # back to declaration order to break ties. On this scale TrueHD
+          # ATMOS, TrueHD, DTS X and DTS-HD MA are all -10000, DD+ ATMOS is
+          # 135 and DD+ is 125.
+          # Pulling the profile in by trash_id also syncs the 43 custom formats
+          # it scores (release-group tiers, HDR, streaming services), so its
+          # thresholds are left at the guide's own values — minFormatScore 1000
+          # and cutoffFormatScore 10000 are calibrated for that whole set, not
+          # for the seven audio formats below. TrueHD and DTS score -10000 here,
+          # so those releases can never clear the minimum.
+          score_set: sqp-1-web-2160p
+
       custom_formats:
         - trash_ids:
             - 1af239278386be2919e1bcee0bde047e # DD+ ATMOS
