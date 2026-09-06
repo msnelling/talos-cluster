@@ -60,19 +60,24 @@ tasks:
       - talosctl {{.TALOSCTL_CMD}} --insecure --nodes {{.NODE_IP}}
 
   plex-audio-tracks:
-    desc: "Run the Plex audio track job now (usage: task utility:plex-audio-tracks [-- --apply])"
+    desc: "Run the Plex audio track job now (usage: [MAX_CHANGES=N] task utility:plex-audio-tracks [-- --apply])"
     deps: [":_require-yq"]
     summary: |
       Creates a one-off Job from the plex-audio-tracks CronJob and prints its
       log. Without -- --apply the Job runs with APPLY=false, so it prints the
       plan and changes nothing. The CronJob itself applies nightly.
+
+      MAX_CHANGES=N raises the change cap for this run only — the way to get
+      past a deliberately large plan (a Plex re-scan that reset selections)
+      without touching values.yaml. Do not kubectl set env the CronJob:
+      ArgoCD self-heal reverts it.
     cmds:
       - |
         NAME="plex-audio-tracks-manual-$(date +%s)"
+        env_set() { yq "(.spec.template.spec.containers[0].env[] | select(.name == \"$1\")).value = \"$2\""; }
         kubectl create job -n db3000 --from=cronjob/plex-audio-tracks "${NAME}" --dry-run=client -o yaml \
-          | if [ "{{.CLI_ARGS}}" = "--apply" ]; then cat; else
-              yq '(.spec.template.spec.containers[0].env[] | select(.name == "APPLY")).value = "false"'
-            fi \
+          | if [ "{{.CLI_ARGS}}" = "--apply" ]; then cat; else env_set APPLY false; fi \
+          | if [ -n "${MAX_CHANGES:-}" ]; then env_set MAX_CHANGES "${MAX_CHANGES}"; else cat; fi \
           | kubectl apply -f - >/dev/null
         until kubectl get job -n db3000 "${NAME}" -o jsonpath='{.status.succeeded}{.status.failed}' | grep -q .; do
           sleep 3

@@ -40,6 +40,10 @@ EXCLUDE_RE = re.compile(r"commentar|descri|descry|isolated|karaoke|sing-?along")
 SECTION_QUERY = {"movie": "", "show": "?type=4"}
 
 
+class PlexError(Exception):
+    pass
+
+
 def plex(path, method="GET"):
     req = urllib.request.Request(
         PLEX_URL + path,
@@ -51,9 +55,9 @@ def plex(path, method="GET"):
             body = resp.read()
             return json.loads(body) if body else {}
     except urllib.error.HTTPError as e:
-        sys.exit(f"{method} {path}: HTTP {e.code}")
+        raise PlexError(f"{method} {path}: HTTP {e.code}") from None
     except urllib.error.URLError as e:
-        sys.exit(f"{method} {path}: {e.reason}")
+        raise PlexError(f"{method} {path}: {e.reason}") from None
 
 
 def fetch_keys(section):
@@ -197,12 +201,8 @@ def main():
         sys.exit(f"\nPlan has {len(todo)} changes, above MAX_CHANGES={MAX_CHANGES} — applying nothing")
 
     print("\nApplying...")
-    # allParts is deliberately not set: parts are iterated explicitly, so
-    # letting Plex propagate one part's selection to its siblings would fight
-    # the plan on multi-part items.
-    for r in todo:
-        plex(f"/library/parts/{r['part']}?{urllib.parse.urlencode({'audioStreamID': r['stream']})}", "PUT")
-    print(f"  {len(todo)} applied")
+    failed = apply(todo)
+    print(f"  {len(todo) - failed} applied, {failed} failed")
 
     # A 2xx does not prove the selection moved, so re-read the items that
     # changed and rebuild their rows. Anything still pending means Plex
@@ -214,9 +214,30 @@ def main():
         for r in left:
             print(f"  {r['title']} ({r['part']}:{r['stream']})", file=sys.stderr)
         sys.exit(f"{len(left)} selection(s) did not take")
+    if failed:
+        sys.exit(f"{failed} PUT(s) failed")
     print("  all selections confirmed")
     print("Done. Selection is per Plex account — other household accounts are unchanged.")
 
 
+def apply(todo):
+    """PUT each selection, continuing past failures so one bad item does not
+    block the rest. Returns the failure count; the caller decides the exit."""
+    # allParts is deliberately not set: parts are iterated explicitly, so
+    # letting Plex propagate one part's selection to its siblings would fight
+    # the plan on multi-part items.
+    failed = 0
+    for r in todo:
+        try:
+            plex(f"/library/parts/{r['part']}?{urllib.parse.urlencode({'audioStreamID': r['stream']})}", "PUT")
+        except PlexError as e:
+            print(f"  {r['title']} ({r['part']}:{r['stream']}): {e}", file=sys.stderr)
+            failed += 1
+    return failed
+
+
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except PlexError as e:
+        sys.exit(str(e))
