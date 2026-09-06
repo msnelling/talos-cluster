@@ -36,6 +36,16 @@ spec:
                   value: "true"
                 - name: MAX_CHANGES
                   value: {{ .Values.maxChanges | quote }}
+                - name: RADARR_URL
+                  value: {{ .Values.radarr.url | quote }}
+                - name: RADARR_PROFILE
+                  value: {{ .Values.radarr.profile | quote }}
+                - name: RADARR_TAG
+                  value: {{ .Values.radarr.tag | quote }}
+                - name: RADARR_SEARCH
+                  value: {{ .Values.radarr.search | quote }}
+                - name: MAX_MOVES
+                  value: {{ .Values.radarr.maxMoves | quote }}
                 - name: PYTHONUNBUFFERED
                   value: "1"
                 - name: PYTHONDONTWRITEBYTECODE
@@ -43,6 +53,8 @@ spec:
               envFrom:
                 - secretRef:
                     name: {{ .Values.existingSecret }}
+                - secretRef:
+                    name: {{ .Values.radarr.existingSecret }}
               volumeMounts:
                 - name: script
                   mountPath: /app/plex_audio_tracks.py
