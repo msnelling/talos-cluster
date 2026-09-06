@@ -1,8 +1,15 @@
-# Drop the DHCP-supplied search domain (xmple.io) from the node resolver.
-# Pods inherit it with ndots:5, so every external lookup first asks for
-# <name>.xmple.io and multiplies the cluster's DNS traffic several times
-# over; musl-based images also stop at that NOERROR/empty answer and report
-# "no usable address" for a perfectly resolvable name.
-machine:
-  network:
-    disableSearchDomain: true
+# Override the DHCP-supplied search domain (xmple.io) on the node resolver.
+# Pods inherit the node's search list with ndots:5, so every external lookup
+# first asks for <name>.xmple.io and multiplies the cluster's DNS traffic
+# several times over; musl-based images also stop at that NOERROR/empty
+# answer and report "no usable address" for a perfectly resolvable name.
+#
+# The override has to be non-empty: Talos drops `domains: []` on write
+# (siderolabs/talos#14263), so an empty list silently inherits DHCP again.
+# cluster.local is already in every pod's search list and kubelet removes
+# the duplicate, so pods end up with exactly the three cluster domains.
+apiVersion: v1alpha1
+kind: ResolverConfig
+searchDomains:
+  domains:
+    - cluster.local
