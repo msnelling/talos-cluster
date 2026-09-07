@@ -102,6 +102,24 @@ config: |
           assign_scores_to: *radarr_profiles
           score: 200
 
+      # Video codec and dynamic range, on the streaming profile only. HEVC is
+      # already universal at 2160p, so this mostly guards against the rare
+      # 2160p x264 release and picks HEVC among equal 1080p candidates. The
+      # guide's own "x265 (no HDR/DV)" rejection stays in place, so 1080p x265
+      # re-encodes without HDR or DV are still refused.
+        - trash_ids:
+            - 9170d55c319f4fe40da8711ba9d8050d # x265
+          assign_scores_to: &radarr_appletv
+            - name: Apple TV Atmos (1080p/2160p)
+          score: 200
+      # SDR only matches 2160p releases carrying no HDR, DV, PQ or HLG. A mild
+      # penalty rather than a rejection: some 4K titles were never graded HDR,
+      # and blocking them would leave nothing to grab.
+        - trash_ids:
+            - 9c38ebb7384dada637be8899efa68e6f # SDR
+          assign_scores_to: *radarr_appletv
+          score: -200
+
   sonarr:
     tv:
       base_url: http://sonarr.db3000.svc/sonarr
@@ -172,6 +190,17 @@ config: |
             - 30f70576671ca933adbdcfc736a69718 # PCM
           assign_scores_to: *appletv_profiles
           score: -10000
+
+      # Video codec and dynamic range, matching Radarr. Scores stay well below
+      # the audio ones so codec never outranks Atmos.
+        - trash_ids:
+            - c9eafd50846d299b862ca9bb6ea91950 # x265
+          assign_scores_to: *appletv_profiles
+          score: 200
+        - trash_ids:
+            - 2016d1676f5ee13a5b7257ff86ac9a93 # SDR
+          assign_scores_to: *appletv_profiles
+          score: -200
 
       # TRaSH "WEB-2160p (Combined)": WEB 1080p below WEB 2160p, cutoff at
       # 2160p, WEB only. Pulling it by trash_id also syncs the guide's

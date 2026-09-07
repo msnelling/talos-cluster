@@ -274,6 +274,10 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **A Sonarr/Radarr profile with `min_format_score: 0` will grab releases that match no custom format at all**, which is how two fake torrents (`.exe` and `.zipx` payloads) reached the queue. Sonarr refused to import them and blocklisted them, but the grabs were wasted. The Apple TV profiles set `min_format_score: 1` so a release must match at least one positive format.
 
+**Channel count is not what carries Atmos height.** DD+ Atmos ships as a 5.1 bed plus object metadata (JOC); the Apple TV decodes it and sends Dolby MAT over eARC for the Arc Ultra to render across its 9.1.4 array. A 7.1 E-AC-3 track *without* Atmos has more bed channels and no height, so it is worse on this chain. Rank Atmos above channel count, never the reverse, and do not chase a "DD+ 7.1 Atmos" tier: streaming does not publish one.
+
+**HEVC is already universal at 2160p**, so a codec preference there changes nothing; it only bites at 1080p, where TRaSH's `x265 (no HDR/DV)` deliberately rejects x265 because those releases are re-encodes of the x264 source. The Apple TV profiles score `x265` +200 and `SDR` -200 but keep that rejection, so 1080p x265 without HDR or DV is still refused. AV1 stays at -10000 on purpose: the Apple TV 4K has no AV1 hardware decode, so an AV1 file forces a CPU transcode on the cluster.
+
 **db3000 media apps use subpath routing** at `db3000.xmple.io/<app>`. Plex is the exception (`plex.xmple.io`) because it cannot serve from a subpath.
 
 **Gitea chart templates `targetPort` from `gitea.config.server.HTTP_PORT`**, not from `service.http.targetPort`. This value must be explicitly set in the wrapper values or the Service renders with an empty targetPort that fails schema validation.
