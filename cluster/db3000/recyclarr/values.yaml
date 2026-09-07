@@ -113,6 +113,7 @@ config: |
           assign_scores_to: &sonarr_profiles
             - name: Ultra-HD
             - name: HD-1080p/UltraHD
+            - name: HD - 720p/1080p
             - name: HD-1080p
             - name: Any
           score: 5000
@@ -147,16 +148,17 @@ config: |
       # them anyway; this is the guard for the odd mislabelled one.
         - trash_ids:
             - 4232a509ce60c4e208d13825b7c06264 # DD+ ATMOS
-          assign_scores_to: &appletv_profile
+          assign_scores_to: &appletv_profiles
+            - name: Apple TV Atmos (2160p)
             - name: Apple TV Atmos (1080p/2160p)
           score: 5000
         - trash_ids:
             - b6fbafa7942952a13e17e2b1152b539a # ATMOS (undefined)
-          assign_scores_to: *appletv_profile
+          assign_scores_to: *appletv_profiles
           score: 3000
         - trash_ids:
             - 63487786a8b01b7f20dd2bc90dd4a477 # DD+
-          assign_scores_to: *appletv_profile
+          assign_scores_to: *appletv_profiles
           score: 1750
         - trash_ids:
             - 0d7824bb924701997f874e7ff7d4844a # TrueHD ATMOS
@@ -168,7 +170,7 @@ config: |
             - 5964f2a8b3be407d083498e4459d05d0 # DTS
             - 851bd64e04c9374c51102be3dd9ae4cc # FLAC
             - 30f70576671ca933adbdcfc736a69718 # PCM
-          assign_scores_to: *appletv_profile
+          assign_scores_to: *appletv_profiles
           score: -10000
 
       # TRaSH "WEB-2160p (Combined)": WEB 1080p below WEB 2160p, cutoff at
@@ -177,8 +179,25 @@ config: |
       # unwanted formats) for this profile. Series are opted in by hand:
       # a profile applies to every file of a series, so it is a per-show
       # decision (see the plex-audio-tracks report).
+      # Two variants, because allowing 1080p changes when Sonarr grabs.
+      # Sonarr never waits for a better release: it takes the best one
+      # available the moment an episode airs. With 1080p allowed that is
+      # almost always a 1080p WEB-DL, which is then downloaded a second time
+      # when the 2160p release appears. Shows that reliably get a 4K release
+      # belong on the 2160p-only variant so Sonarr waits; the combined one is
+      # for shows where 1080p is the best that will ever exist.
+      #
+      # min_format_score 1 rejects releases that match no custom format at
+      # all. The guide default of 0 let scoreless junk qualify, including two
+      # fake torrents whose payload Sonarr refused to import.
       quality_profiles:
+        - trash_id: d1498e7d189fbe6c7110ceaabb7473e6 # WEB-2160p
+          name: Apple TV Atmos (2160p)
+          min_format_score: 1
+          reset_unmatched_scores:
+            enabled: true
         - trash_id: c4cadd6b35b95f62c3d47a408e53e2f7 # WEB-2160p (Combined)
           name: Apple TV Atmos (1080p/2160p)
+          min_format_score: 1
           reset_unmatched_scores:
             enabled: true
