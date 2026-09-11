@@ -68,6 +68,7 @@ Merge the PR; ArgoCD creates the namespace and deployment.
 
 - Seerr → Settings → General → **Enable Proxy Support**, so it takes the client address from `X-Forwarded-For` rather than logging every request as the cloudflared pod.
 - Seerr → Settings → General → **Application URL** should be `https://db3000.xmple.io` (used in notification links).
+- Cloudflare → `xmple.io` → SSL/TLS → Edge Certificates → **Always Use HTTPS** on. Traefik's HTTP→HTTPS redirect is not on the tunnel path, so without it a plain `http://` request is proxied through to the app unencrypted.
 
 ## Adding a hostname
 
@@ -78,5 +79,6 @@ Merge the PR; ArgoCD creates the namespace and deployment.
 ## Verification
 
 - `kubectl logs -n cloudflared deploy/cloudflared` shows four `Registered tunnel connection` lines per replica.
-- From off the LAN: `https://db3000.xmple.io` serves Seerr, and `https://db3000.xmple.io/radarr` is Seerr's 404, not Radarr.
+- From off the LAN: `https://db3000.xmple.io` serves Seerr, `https://db3000.xmple.io/radarr` is Seerr's 404, not Radarr, and `curl -sI http://db3000.xmple.io` returns a 301 to HTTPS.
 - `dig db3000.xmple.io @10.1.1.53` still answers `10.1.1.60`.
+- Prometheus → Targets lists both cloudflared pods as up, so `CloudflaredTunnelDown` is watching real series rather than firing on `absent()`.
