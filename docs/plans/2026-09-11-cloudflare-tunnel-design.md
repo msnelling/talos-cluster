@@ -56,9 +56,9 @@ Seerr does **not** use Access. Its own Plex/Jellyfin sign-in is the authenticati
 ```bash
 brew install cloudflared
 cloudflared tunnel login                     # browser; pick the xmple.io zone, writes ~/.cloudflared/cert.pem
-cloudflared tunnel create lenovo
-cloudflared tunnel route dns lenovo db3000.xmple.io
-cloudflared tunnel token lenovo              # → cloudflare_tunnel_token in vars.yaml
+cloudflared tunnel create Talos
+cloudflared tunnel route dns Talos db3000.xmple.io
+cloudflared tunnel token Talos              # → cloudflare_tunnel_token in vars.yaml
 task components:cloudflared-secret
 ```
 
@@ -73,7 +73,7 @@ Merge the PR; ArgoCD creates the namespace and deployment.
 ## Adding a hostname
 
 1. Add `{hostname, service}` to `ingress` in `cluster/apps/cloudflared/values.yaml`, pointing at the app's Service (`http://<svc>.<ns>.svc:<port>`). Gitea's `gitea-http` is headless, so `http://gitea-http.gitea.svc:3000` resolves to the pod IPs directly — that works.
-2. `cloudflared tunnel route dns lenovo <hostname>`.
+2. `cloudflared tunnel route dns Talos <hostname>`.
 3. Optionally create an Access application for the hostname and set `access.audTag` (and `access.teamName` once).
 
 ## Verification

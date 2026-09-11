@@ -126,8 +126,8 @@ tasks:
           cloudflare_tunnel_token is not set in vars.yaml. The tunnel must be
           locally-managed (a dashboard-created tunnel ignores the ingress in git):
             cloudflared tunnel login
-            cloudflared tunnel create {{.CLUSTER_NAME}}
-            cloudflared tunnel token {{.CLUSTER_NAME}}
+            cloudflared tunnel create Talos
+            cloudflared tunnel token Talos
     cmds:
       - kubectl create namespace cloudflared --dry-run=client -o yaml | kubectl apply -f -
       - |
