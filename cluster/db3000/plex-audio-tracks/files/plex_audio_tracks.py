@@ -57,8 +57,11 @@ RADARR_SEARCH = os.environ.get("RADARR_SEARCH", "true").lower() == "true"
 MAX_MOVES = int(os.environ.get("MAX_MOVES", "10"))
 
 # Plex rejects an over-long URL, and a show library runs to thousands of keys.
-BATCH = 200
-TIMEOUT = 60
+# It also analyses any unanalysed item before answering a metadata request,
+# at roughly half a second each, so a batch must fit inside TIMEOUT even when
+# every item in it is unanalysed.
+BATCH = 50
+TIMEOUT = 300
 EXCLUDE_RE = re.compile(r"commentar|descri|descry|isolated|karaoke|sing-?along")
 # Episodes must be requested explicitly; a show section lists shows, which
 # carry no Media/Part.
