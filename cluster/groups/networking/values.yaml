@@ -11,3 +11,6 @@ apps:
   - name: traefik
     namespace: traefik
     path: cluster/apps/traefik
+  - name: cloudflared
+    namespace: cloudflared
+    path: cluster/apps/cloudflared

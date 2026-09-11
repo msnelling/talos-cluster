@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Talos Linux Kubernetes cluster with full GitOps management via ArgoCD. Supports single-node and multi-node topologies. All cluster components are deployed as **wrapper Helm charts** and managed declaratively through git.
 
-**Stack:** Talos v1.12.3, Kubernetes v1.35.0, Cilium CNI, Traefik (Gateway API), cert-manager, Longhorn, ArgoCD
+**Stack:** Talos v1.12.3, Kubernetes v1.35.0, Cilium CNI, Traefik (Gateway API), cert-manager, Longhorn, ArgoCD, Cloudflare Tunnel
 
 ## Commands
 
@@ -21,6 +21,7 @@ task components:cilium           # Install/upgrade Cilium CNI (kube-system)
 task components:traefik          # Install/upgrade Traefik (traefik namespace)
 task components:cert-manager     # Install/upgrade cert-manager (cert-manager namespace)
 task components:longhorn-secret  # Create Longhorn S3 backup secret
+task components:cloudflared-secret # Create Cloudflare Tunnel token secret (cloudflared namespace)
 task components:argocd           # Install/upgrade ArgoCD (argocd namespace)
 task components:db3000-secrets   # Create db3000 media app secrets
 task components:gitea-secrets    # Create Gitea admin + config secrets (gitea namespace)
@@ -82,7 +83,7 @@ task db:restore-verify  # Non-destructive DR test: restore to temp cluster, vali
 
 Tasks are split into domain-grouped files under `taskfiles/` with namespaced includes:
 - `taskfiles/setup.yaml` -- cluster provisioning (download, generate, patch, apply, bootstrap, kubeconfig)
-- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, argocd, gitea-secrets, cnpg-secrets, db3000-secrets, renovate-secret, recyclarr-secret, plex-secret; cnpg-role-secrets is internal, runs as dep of gitea-secrets/db3000-secrets)
+- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, cloudflared-secret, argocd, gitea-secrets, cnpg-secrets, db3000-secrets, renovate-secret, recyclarr-secret, plex-secret; cnpg-role-secrets is internal, runs as dep of gitea-secrets/db3000-secrets)
 - `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, join-node, reboot, reset)
 - `taskfiles/database.yaml` -- CNPG PostgreSQL operations (status, backup, restore, psql)
 - `taskfiles/utility.yaml` -- diagnostics (status, dashboard, disks, links, plex-audio-tracks)
@@ -137,7 +138,12 @@ cluster/groups/<group>/
 Client → DNS (*.xmple.io → 10.1.1.60) → Cilium LB-IPAM (L2 announcement)
   → Traefik Service (80/443) → Traefik container (8000/8443)
   → HTTPRoute matching → Backend Service
+
+Internet → Cloudflare edge (proxied CNAME → <tunnel-id>.cfargotunnel.com)
+  → cloudflared (outbound-only tunnel) → Backend Service
 ```
+
+- **cloudflared** publishes the hostnames listed under `ingress` in `cluster/apps/cloudflared/values.yaml` to the internet. The LAN never sees those public records: AdGuard forwards `xmple.io` to the router, which answers with the internal `10.1.1.60`, so the same hostname reaches Traefik on the LAN and the tunnel from outside.
 
 - **Cilium** provides LoadBalancer IPs via LB-IPAM + L2 announcements (no MetalLB needed)
 - **Traefik** is the Gateway API controller; shared wildcard Gateway in traefik namespace
@@ -282,6 +288,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **db3000 media apps use subpath routing** at `db3000.xmple.io/<app>`. Plex is the exception (`plex.xmple.io`) because it cannot serve from a subpath.
 
+**Cloudflare Tunnel routes must target the app's Service, never Traefik.** `db3000.xmple.io` is public through the tunnel for Seerr alone; on the LAN the same host carries Radarr, Sonarr and the rest on subpaths, and forwarding the tunnel to Traefik would publish all of them. The tunnel must be **locally-managed** (`cloudflared tunnel create`): one created in the Zero Trust dashboard ignores the ingress rules in git and uses the dashboard's routes, while still connecting and looking healthy. Adding a hostname to `ingress` doesn't create its DNS record — run `cloudflared tunnel route dns lenovo <hostname>` as well. Access is optional per route via `access.audTag`; don't put Seerr behind it (Plex/Jellyfin sign-in and the mobile apps break), and remember `git` over HTTPS can't complete an Access login. See `docs/plans/2026-09-11-cloudflare-tunnel-design.md`.
+
 **Gitea chart templates `targetPort` from `gitea.config.server.HTTP_PORT`**, not from `service.http.targetPort`. This value must be explicitly set in the wrapper values or the Service renders with an empty targetPort that fails schema validation.
 
 **Always validate charts locally before pushing:** `helm dependency build <chart> && helm lint <chart> && helm template test <chart> | kubeconform -strict -ignore-missing-schemas -summary`
@@ -302,6 +310,7 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 |---|---|---|
 | `cloudflare-api-token` | cert-manager | `task components:cert-manager` (from vars.yaml) |
 | `longhorn-s3-secret` | longhorn-system | `task components:longhorn-secret` (from vars.yaml) |
+| `cloudflared-tunnel-token` | cloudflared | `task components:cloudflared-secret` (from vars.yaml `cloudflare_tunnel_token`) |
 | `argocd-repo-key` | argocd | `task components:argocd` (from local `argocd-repo-key` file) |
 | `argocd-secret` (dex.github.clientSecret) | argocd | `task components:argocd` (from vars.yaml) |
 | `media-smb-creds` | db3000 | `task components:db3000-secrets` (from vars.yaml) |

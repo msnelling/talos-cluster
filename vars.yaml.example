@@ -25,6 +25,8 @@ tailscale_routes: "10.1.1.0/24"
 loadbalancer_ip: "10.1.1.60"
 domain: "example.com"
 cloudflare_api_token: "your-cloudflare-api-token"
+# Locally-managed Cloudflare Tunnel: `cloudflared tunnel token <name>`
+cloudflare_tunnel_token: "your-cloudflare-tunnel-token"
 longhorn_s3_endpoint: "https://truenas.local:9000"
 longhorn_s3_access_key: "your-minio-access-key"
 longhorn_s3_secret_key: "your-minio-secret-key"

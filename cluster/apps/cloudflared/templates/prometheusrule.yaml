@@ -1,0 +1,29 @@
+{{- /*
+A single replica losing its connections already shows as
+KubeDeploymentReplicasMismatch, because readiness follows /ready. This rule
+covers the case that takes every public hostname offline: no replica holds an
+edge connection, or none is being scraped at all (the absent() half).
+*/ -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cloudflared
+  labels:
+    app.kubernetes.io/name: cloudflared
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: cloudflared
+      rules:
+        - alert: CloudflaredTunnelDown
+          expr: sum(cloudflared_tunnel_ha_connections) == 0 or absent(cloudflared_tunnel_ha_connections)
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Cloudflare Tunnel has no edge connections
+            description: >-
+              No cloudflared replica holds a connection to Cloudflare's edge, so
+              every hostname published through the tunnel returns a Cloudflare
+              error. Check the pod logs in the cloudflared namespace; a revoked
+              or rotated token shows as repeated registration failures.
