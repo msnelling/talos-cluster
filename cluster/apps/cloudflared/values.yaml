@@ -1,7 +1,7 @@
 image:
   registry: docker.io
   repository: cloudflare/cloudflared
-  tag: "2026.9.0"
+  tag: "2026.9.1"
   pullPolicy: IfNotPresent
 
 replicaCount: 2
