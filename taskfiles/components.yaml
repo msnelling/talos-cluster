@@ -118,6 +118,34 @@ tasks:
           AWS_ENDPOINTS: "{{.LONGHORN_S3_ENDPOINT}}"
         EOF
 
+  cloudflared-secret:
+    desc: Create Cloudflare Tunnel token secret (creates namespace if needed)
+    preconditions:
+      - sh: test -n "{{.CLOUDFLARE_TUNNEL_TOKEN}}"
+        msg: |
+          cloudflare_tunnel_token is not set in vars.yaml. The tunnel must be
+          locally-managed (a dashboard-created tunnel ignores the ingress in git):
+            cloudflared tunnel login
+            cloudflared tunnel create Talos
+            cloudflared tunnel token Talos
+    cmds:
+      - kubectl create namespace cloudflared --dry-run=client -o yaml | kubectl apply -f -
+      - |
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: cloudflared-tunnel-token
+          namespace: cloudflared
+        type: Opaque
+        stringData:
+          token: "{{.CLOUDFLARE_TUNNEL_TOKEN}}"
+        EOF
+      - |
+        if kubectl get deployment cloudflared -n cloudflared >/dev/null 2>&1; then
+          kubectl rollout restart deployment cloudflared -n cloudflared
+        fi
+
   argocd:
     desc: Install or upgrade ArgoCD
     deps: [":_require-helm"]

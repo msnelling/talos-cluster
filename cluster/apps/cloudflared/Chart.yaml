@@ -1,0 +1,4 @@
+apiVersion: v2
+name: cloudflared
+version: 0.1.0
+description: Cloudflare Tunnel connector publishing selected cluster Services to the internet

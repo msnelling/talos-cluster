@@ -29,6 +29,8 @@ vars:
     sh: yq '.tailscale_routes // ""' vars.yaml
   CLOUDFLARE_API_TOKEN:
     sh: yq '.cloudflare_api_token' vars.yaml
+  CLOUDFLARE_TUNNEL_TOKEN:
+    sh: yq '.cloudflare_tunnel_token // ""' vars.yaml
   LONGHORN_S3_ENDPOINT:
     sh: yq '.longhorn_s3_endpoint' vars.yaml
   LONGHORN_S3_ACCESS_KEY:

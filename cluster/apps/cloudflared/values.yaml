@@ -1,0 +1,33 @@
+image:
+  registry: docker.io
+  repository: cloudflare/cloudflared
+  tag: "2026.9.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+# Token of a locally-managed tunnel (`cloudflared tunnel token <name>`),
+# created by `task components:cloudflared-secret`.
+existingSecret: cloudflared-tunnel-token
+
+# Zero Trust team name (<team>.cloudflareaccess.com). Only read by routes that
+# set access.audTag.
+access:
+  teamName: ""
+
+# Public hostnames served by the tunnel. Each one also needs its DNS record:
+#   cloudflared tunnel route dns <tunnel> <hostname>
+# Point routes at the app's Service, not at Traefik: an internal host such as
+# db3000.xmple.io carries other apps on subpaths that must stay private.
+# Set access.audTag to the Access application's AUD tag to make cloudflared
+# reject any request that did not pass that Access policy.
+ingress:
+  - hostname: db3000.xmple.io
+    service: http://seerr.db3000.svc:80
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    memory: 256Mi

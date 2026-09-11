@@ -1,0 +1,26 @@
+{{- /*
+cloudflared refuses to start unless the last ingress rule is a catch-all, so
+the 404 rule is appended here rather than left to values.
+*/ -}}
+{{- $rules := list }}
+{{- range .Values.ingress }}
+{{- $rule := dict "hostname" .hostname "service" .service }}
+{{- with .access }}
+{{- $access := dict
+      "required" true
+      "teamName" (required "access.teamName must be set when a route sets access" $.Values.access.teamName)
+      "audTag" (required "access.audTag must list the Access application's AUD tag" .audTag) }}
+{{- $_ := set $rule "originRequest" (dict "access" $access) }}
+{{- end }}
+{{- $rules = append $rules $rule }}
+{{- end }}
+{{- $rules = append $rules (dict "service" "http_status:404") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared
+  labels:
+    app.kubernetes.io/name: cloudflared
+data:
+  config.yaml: |
+    {{- dict "ingress" $rules | toYaml | nindent 4 }}
