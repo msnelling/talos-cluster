@@ -30,7 +30,7 @@ resources:
 #   DTS-X              250   object audio, but no DTS support in this chain
 #   DTS-HD MA          200   same
 #
-# Every score is >= 0 and the four profiles these are assigned to use
+# Every audio score is >= 0 and the four profiles these are assigned to use
 # cutoffFormatScore 0, so no existing file drops below cutoff and nothing is
 # re-downloaded automatically. The streaming profile below is the exception,
 # and exists precisely to drive upgrades for titles moved onto it.
@@ -133,6 +133,17 @@ config: |
             - 9c38ebb7384dada637be8899efa68e6f # SDR
           assign_scores_to: *radarr_appletv
           score: -200
+      # The TV (Samsung UE65KS9500) has no Dolby Vision, so DV only plays
+      # through the HDR10 base layer. Profile 7/8 releases carry one and play
+      # as ordinary HDR10; nothing boosts DV, so they get no preference over
+      # it. Profile 5 WEB releases have no HDR10 layer at all and are
+      # rejected. The Apple TV profile already gets this from SQP-1 WEB; the
+      # stock ones need it stated. Existing files are named with HDR, which
+      # the format excludes, so none of them drop below cutoff.
+        - trash_ids:
+            - 923b6abef9b17f937fab56cfcf89e1f1 # DV (w/o HDR fallback)
+          assign_scores_to: *radarr_profiles
+          score: -10000
 
   sonarr:
     tv:
@@ -223,6 +234,17 @@ config: |
             - 2016d1676f5ee13a5b7257ff86ac9a93 # SDR
           assign_scores_to: *appletv_profiles
           score: -200
+      # Dolby Vision without an HDR10 fallback (profile 5), as for Radarr.
+      # The WEB-2160p guide profiles leave this format out, so the Apple TV
+      # profiles need it as well as the stock ones.
+        - trash_ids:
+            - 9b27ab6498ec0f31a3353992e19434ca # DV (w/o HDR fallback)
+          assign_scores_to: *appletv_profiles
+          score: -10000
+        - trash_ids:
+            - 9b27ab6498ec0f31a3353992e19434ca # DV (w/o HDR fallback)
+          assign_scores_to: *sonarr_profiles
+          score: -10000
 
       # TRaSH "WEB-2160p (Combined)": WEB 1080p below WEB 2160p, cutoff at
       # 2160p, WEB only. Pulling it by trash_id also syncs the guide's
