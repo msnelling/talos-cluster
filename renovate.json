@@ -9,6 +9,12 @@
       "automerge": false
     },
     {
+      "description": "Require manual merge for Longhorn: its upgrade stalls until every node is Ready, so merge only when kubectl get nodes is all Ready",
+      "matchDatasources": ["helm"],
+      "matchPackageNames": ["longhorn"],
+      "automerge": false
+    },
+    {
       "description": "Exclude date-based tags (2021.x.x etc) for LinuxServer images that use application semver",
       "matchDatasources": ["docker"],
       "matchPackageNames": [
