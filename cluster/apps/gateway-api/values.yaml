@@ -1,0 +1,2 @@
+# gateway-api-crds takes no values: its chart version is the Gateway API
+# bundle version and it always renders the experimental channel.

@@ -15,6 +15,12 @@
       "automerge": false
     },
     {
+      "description": "Require manual merge for Gateway API CRDs: confirm the deployed Traefik supports the new bundle and that tcproutes still serves v1alpha2",
+      "matchDatasources": ["helm"],
+      "matchPackageNames": ["gateway-api-crds"],
+      "automerge": false
+    },
+    {
       "description": "Exclude date-based tags (2021.x.x etc) for LinuxServer images that use application semver",
       "matchDatasources": ["docker"],
       "matchPackageNames": [
