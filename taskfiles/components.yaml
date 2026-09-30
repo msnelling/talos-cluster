@@ -13,12 +13,22 @@ tasks:
           --force-conflicts
           --wait --timeout 5m
 
+  gateway-api:
+    desc: Install or upgrade the Gateway API CRDs
+    deps: [":_require-helm"]
+    cmds:
+      - helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts --force-update
+      - helm dependency build cluster/apps/gateway-api
+      # Applied without a Helm release: everything in the chart is cluster-scoped,
+      # and a release would refuse CRDs that ArgoCD already owns.
+      - helm template gateway-api cluster/apps/gateway-api
+          | kubectl apply --server-side --force-conflicts -f -
+
   traefik:
     desc: Install or upgrade Traefik
     deps: [":_require-helm"]
     cmds:
-      - kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/experimental-install.yaml
-          --server-side --force-conflicts
+      - task: gateway-api
       - helm repo add traefik https://traefik.github.io/charts --force-update
       - helm dependency build cluster/apps/traefik
       - helm upgrade --install traefik cluster/apps/traefik

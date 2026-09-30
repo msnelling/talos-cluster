@@ -18,6 +18,7 @@ task setup    # Full cluster bootstrap for all nodes defined in vars.yaml
 ### Individual Component Install/Upgrade
 ```bash
 task components:cilium           # Install/upgrade Cilium CNI (kube-system)
+task components:gateway-api      # Install/upgrade the Gateway API CRDs (also runs as the first step of components:traefik)
 task components:traefik          # Install/upgrade Traefik (traefik namespace)
 task components:cert-manager     # Install/upgrade cert-manager (cert-manager namespace)
 task components:longhorn-secret  # Create Longhorn S3 backup secret
@@ -83,7 +84,7 @@ task db:restore-verify  # Non-destructive DR test: restore to temp cluster, vali
 
 Tasks are split into domain-grouped files under `taskfiles/` with namespaced includes:
 - `taskfiles/setup.yaml` -- cluster provisioning (download, generate, patch, apply, bootstrap, kubeconfig)
-- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, traefik, cert-manager, longhorn-secret, cloudflared-secret, argocd, gitea-secrets, cnpg-secrets, db3000-secrets, renovate-secret, recyclarr-secret, plex-secret; cnpg-role-secrets is internal, runs as dep of gitea-secrets/db3000-secrets)
+- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, gateway-api, traefik, cert-manager, longhorn-secret, cloudflared-secret, argocd, gitea-secrets, cnpg-secrets, db3000-secrets, renovate-secret, recyclarr-secret, plex-secret; cnpg-role-secrets is internal, runs as dep of gitea-secrets/db3000-secrets)
 - `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, join-node, reboot, reset)
 - `taskfiles/database.yaml` -- CNPG PostgreSQL operations (status, backup, restore, psql)
 - `taskfiles/utility.yaml` -- diagnostics (status, dashboard, disks, links, plex-audio-tracks)
@@ -219,6 +220,8 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 **Never commit directly to `main`.** Always create a feature branch first (`git checkout -b feat/<name>` or `fix/<name>`), do the work there, then open a PR. This includes design docs, plans, and any other changes.
 
 **Gateway listener ports must be container ports (8000/8443), not service ports (80/443).** Traefik maps entrypoints by container port internally.
+
+**Gateway API CRDs come from the `gateway-api` app, not the Traefik chart**, which ships only Traefik's own CRDs. The app wraps `wiremind/gateway-api-crds`, a community chart whose version is the Gateway API bundle version and which always renders the experimental channel. The channel is load-bearing: Traefik 3.7 watches `TCPRoute` (Gitea SSH) as `v1alpha2`, which the standard-channel v1.6 CRDs do not serve, and with `experimentalChannel: true` a version it cannot watch stops the whole Gateway provider from starting — every HTTPRoute goes down, not just the TCPRoute, and nothing is logged. Renovate therefore never automerges this chart (`renovate.json`). Before merging a bump, check the Gateway API version the deployed Traefik supports (the Kubernetes Gateway section of Traefik's migration notes) and that the new bundle still serves what Traefik watches: `helm template cluster/apps/gateway-api | yq 'select(.metadata.name == "tcproutes.gateway.networking.k8s.io") | .spec.versions[] | select(.served) | .name'`. The bundle's `safe-upgrades` ValidatingAdmissionPolicy rejects bundles older than v1.5 and experimental CRDs applied over standard ones. Deleting the `gateway-api` Application cascades to the CRDs and with them every Gateway and route in the cluster; remove its finalizer first. See `docs/plans/2026-09-30-gateway-api-crds-design.md`.
 
 **`task reconfigure` re-pins the Kubernetes images from `vars.yaml`.** The base config under `generated/` carries the version it was generated with, and `day2:upgrade-k8s` never rewrites it, so without the re-pin a reconfigure months later would roll every node back to the old kubelet and control plane. Keep `kubernetes_version` in `vars.yaml` in step with the live cluster (`kubectl get nodes`) and check `talosctl apply-config --dry-run` shows only the change you intended.
 

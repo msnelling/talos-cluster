@@ -8,6 +8,9 @@ apps:
   - name: cilium
     namespace: kube-system
     path: cluster/apps/cilium
+  - name: gateway-api
+    namespace: kube-system
+    path: cluster/apps/gateway-api
   - name: traefik
     namespace: traefik
     path: cluster/apps/traefik
