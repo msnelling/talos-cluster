@@ -25,6 +25,7 @@ tasks:
       - talosctl gen secrets -o generated/secrets.yaml --force
       - talosctl gen config
           --with-secrets generated/secrets.yaml
+          --talos-version {{.TALOS_CONFIG_CONTRACT}}
           --output generated/
           --force
           {{.CLUSTER_NAME}}

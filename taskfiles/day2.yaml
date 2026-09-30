@@ -222,6 +222,7 @@ tasks:
       - echo "Generating config for {{.JOIN_NODE}} using existing cluster secrets..."
       - talosctl gen config
           --with-secrets generated/secrets.yaml
+          --talos-version {{.TALOS_CONFIG_CONTRACT}}
           --output generated/
           --force
           {{.CLUSTER_NAME}}
