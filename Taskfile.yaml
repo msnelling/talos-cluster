@@ -23,6 +23,12 @@ vars:
     sh: yq '.kubernetes_version' vars.yaml
   CONTROL_PLANE_PORT:
     sh: yq '.control_plane_port' vars.yaml
+  # Layout `talosctl gen config` emits. From v1.14 its default splits the config
+  # into per-component documents (KubeletConfig, UnattendedInstallConfig, ...),
+  # which reject the v1alpha1 fields our patches set (.machine.install,
+  # .machine.kubelet, .cluster.*). Pinning v1.13 keeps the single v1alpha1
+  # document the nodes run; the installed Talos version is set by TALOS_VERSION.
+  TALOS_CONFIG_CONTRACT: v1.13
   TAILSCALE_AUTH_KEY:
     sh: yq '.tailscale_auth_key' vars.yaml
   TAILSCALE_ROUTES:
