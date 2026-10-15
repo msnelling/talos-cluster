@@ -32,4 +32,4 @@ actions:
       registry: docker.io
       repository: docker
       # renovate: datasource=docker depName=docker.io/docker
-      tag: "28-dind"
+      tag: "29-dind"
