@@ -1,3 +1,7 @@
+# Must match the `url` of the argocd-repo-key secret and each group's repoURL.
+# Port 443 because the LAN gateway's IPS can block node → github.com:22.
+repoURL: ssh://git@ssh.github.com:443/msnelling/talos-cluster.git
+
 argo-cd:
   global:
     domain: argocd.xmple.io

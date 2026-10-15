@@ -93,7 +93,7 @@ local key files (.pem, ssh keys)  ───────────────�
 | Key | Value |
 |-----|-------|
 | `type` | `git` |
-| `url` | `git@github.com:msnelling/talos-cluster.git` |
+| `url` | `ssh://git@ssh.github.com:443/msnelling/talos-cluster.git` |
 | `sshPrivateKey` | Contents of `argocd-repo-key` file |
 
 The secret is also labelled `argocd.argoproj.io/secret-type=repository` so ArgoCD auto-discovers it.

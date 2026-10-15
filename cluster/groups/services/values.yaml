@@ -1,4 +1,4 @@
-repoURL: git@github.com:xmple/talos-cluster.git
+repoURL: ssh://git@ssh.github.com:443/msnelling/talos-cluster.git
 targetRevision: main
 project: cluster
 

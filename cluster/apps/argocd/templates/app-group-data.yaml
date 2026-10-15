@@ -7,7 +7,7 @@ metadata:
 spec:
   project: cluster
   source:
-    repoURL: git@github.com:xmple/talos-cluster.git
+    repoURL: {{ .Values.repoURL }}
     targetRevision: main
     path: cluster/groups/data
   destination:

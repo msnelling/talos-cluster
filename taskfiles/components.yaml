@@ -170,7 +170,7 @@ tasks:
       - kubectl create secret generic argocd-repo-key
           --namespace argocd
           --from-literal=type=git
-          --from-literal=url=git@github.com:xmple/talos-cluster.git
+          --from-literal=url=ssh://git@ssh.github.com:443/msnelling/talos-cluster.git
           --from-file=sshPrivateKey=argocd-repo-key
           --dry-run=client -o yaml | kubectl apply -f -
       - kubectl label secret argocd-repo-key -n argocd argocd.argoproj.io/secret-type=repository --overwrite
