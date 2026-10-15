@@ -215,9 +215,13 @@ After deploying the observability stack, apply the logging patch with `task reco
 
 Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdown). Read the relevant design doc before modifying a component.
 
+New design specs and implementation plans go in `docs/plans/` too, and stay there while the branch is open. When the work ships, its plans move to `docs/plans/archive/`. Design docs this file links to are reference material, not plans, and stay in `docs/plans/`.
+
 ## Critical Gotchas
 
 **Never commit directly to `main`.** Always create a feature branch first (`git checkout -b feat/<name>` or `fix/<name>`), do the work there, then open a PR. This includes design docs, plans, and any other changes.
+
+**Commit messages use Conventional Commits with a scope:** `<type>(<scope>): <imperative summary>`, e.g. `feat(gitea): upgrade to Gitea 28.1.0` or `fix(renovate): stop automerging Longhorn`. The scope is the app or area (`gitea`, `talos`, `deps`). PRs are squash-merged, and GitHub appends ` (#N)` to the subject.
 
 **Gateway listener ports must be container ports (8000/8443), not service ports (80/443).** Traefik maps entrypoints by container port internally.
 
@@ -305,7 +309,15 @@ Architecture decisions and rationale are in `docs/plans/` (date-prefixed markdow
 
 **Always validate charts locally before pushing:** `helm dependency build <chart> && helm lint <chart> && helm template test <chart> | kubeconform -strict -ignore-missing-schemas -summary`
 
+**There is no test suite:** the chart validation above is the check for a change. To check every chart, run it over each one: `for c in cluster/*/*/; do helm dependency build "$c" && helm lint "$c" && helm template test "$c" | kubeconform -strict -ignore-missing-schemas -summary || break; done`. A change under `cluster/lib/` also needs every chart that consumes it validated, as CI does for `cluster/db3000/*`.
+
 **CI gates every PR to `main`** (`.github/workflows/validate.yaml`, on changed files only): `yamllint -c .yamllint.yaml` (excludes `templates/`), `renovate-config-validator renovate.json`, and the Helm validation above. Run the relevant one locally before pushing — e.g. `npx --yes --package renovate -- renovate-config-validator renovate.json` after editing Renovate config.
+
+There is no pre-commit hook; CI is the only gate. CI runs on draft PRs as well, because the workflow triggers on `pull_request` with no draft condition.
+
+**PR labels:** apply at most one, chosen by commit type: `bug` for `fix`, `enhancement` for `feat`, `documentation` for `docs`, and none for `chore`, `refactor` or anything else. Never apply `renovate` (it belongs to Renovate) or the issue-triage labels `duplicate`, `invalid`, `wontfix`, `question`, `good first issue` and `help wanted`.
+
+**Audits have no production telemetry source.** Prometheus, Loki and Grafana are cluster-internal with no MCP or API access, so `/x:audit` works from the code alone.
 
 **Only override upstream defaults when necessary.** Run `helm show values <repo>/<chart> --version <ver>` to check defaults before adding values. Redundant overrides add maintenance burden and can drift from upstream.
 
