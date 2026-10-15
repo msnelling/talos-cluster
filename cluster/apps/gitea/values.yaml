@@ -1,4 +1,11 @@
 gitea:
+  image:
+    # registry+repository restate chart defaults so Renovate tracks the image.
+    # The tag overrides the chart's appVersion, which trails Gitea releases.
+    registry: docker.gitea.com
+    repository: gitea
+    tag: "28.1.0"
+
   postgresql-ha:
     enabled: false
   postgresql:
@@ -48,7 +55,9 @@ gitea:
       service:
         DISABLE_REGISTRATION: true
       migrations:
-        ALLOWED_DOMAINS: "github.com,*.github.com"
+        # Strict makes the host list exclusive; lax would allow any public host.
+        EGRESS_MODE: strict
+        ALLOWED_HOST_LIST: "github.com"
       oauth2:
         ACCOUNT_LINKING: login
       actions:
