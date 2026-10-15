@@ -87,7 +87,7 @@ local key files (.pem, ssh keys)  ───────────────�
 2. Add `argocd-repo-key.pub` as a **read-only deploy key** in GitHub repo settings:
    GitHub → repo → Settings → Deploy keys → Add deploy key
 
-**Created by:** `task components:argocd` (bundled with the Helm install)
+**Created by:** `task components:argocd-secrets` (also run by `task components:argocd`)
 
 **Secret contents:**
 | Key | Value |
@@ -100,7 +100,7 @@ The secret is also labelled `argocd.argoproj.io/secret-type=repository` so ArgoC
 
 ### GitHub OAuth (Dex)
 
-**Secret:** `argocd-secret` in `argocd` namespace (extra fields injected via `helm --set`)
+**Secret:** `argocd-dex-github` in `argocd` namespace, labelled `app.kubernetes.io/part-of: argocd`
 
 **Purpose:** GitHub OAuth client credentials for ArgoCD login via Dex.
 
@@ -114,9 +114,15 @@ The secret is also labelled `argocd.argoproj.io/secret-type=repository` so ArgoC
    github_oauth_client_secret: "your-client-secret"
    ```
 
-**Created by:** `task components:argocd` (injected via `helm --set` during install)
+**Created by:** `task components:argocd-secrets` (also run by `task components:argocd`)
 
-**Injection method:** Unlike other secrets, these are injected directly into the Helm release via `--set` flags, not created as a standalone secret. ArgoCD's chart stores them in the `argocd-secret` Secret automatically.
+**Secret contents:**
+| Key | Value |
+|-----|-------|
+| `clientID` | `github_oauth_client_id` |
+| `clientSecret` | `github_oauth_client_secret` |
+
+`dex.config` in `cluster/apps/argocd/values.yaml` reads them as `$argocd-dex-github:clientID` and `$argocd-dex-github:clientSecret`. ArgoCD resolves that syntax only for Secrets carrying the `part-of` label.
 
 ---
 

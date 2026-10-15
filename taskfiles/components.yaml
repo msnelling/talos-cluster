@@ -157,8 +157,13 @@ tasks:
         fi
 
   argocd:
-    desc: Install or upgrade ArgoCD
-    deps: [":_require-helm"]
+    desc: Create ArgoCD's secrets, and install ArgoCD if it does not yet manage itself
+    cmds:
+      - task: argocd-secrets
+      - task: argocd-install
+
+  argocd-secrets:
+    desc: Create or update the ArgoCD repo key and GitHub OAuth secrets (safe on a running cluster)
     preconditions:
       - sh: test -f argocd-repo-key
         msg: |
@@ -174,21 +179,41 @@ tasks:
           --from-file=sshPrivateKey=argocd-repo-key
           --dry-run=client -o yaml | kubectl apply -f -
       - kubectl label secret argocd-repo-key -n argocd argocd.argoproj.io/secret-type=repository --overwrite
+      # dex.config in cluster/apps/argocd/values.yaml reads these keys as
+      # $argocd-dex-github:<key>; ArgoCD only resolves Secrets carrying the
+      # part-of label.
+      - |
+        cat <<'EOF' | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: argocd-dex-github
+          namespace: argocd
+          labels:
+            app.kubernetes.io/part-of: argocd
+        type: Opaque
+        stringData:
+          clientID: "{{.GITHUB_OAUTH_CLIENT_ID}}"
+          clientSecret: "{{.GITHUB_OAUTH_CLIENT_SECRET}}"
+        EOF
+
+  argocd-install:
+    desc: Install ArgoCD with Helm (skipped once the argocd Application manages ArgoCD)
+    internal: true
+    deps: [":_require-helm"]
+    # Helm installs ArgoCD only at bootstrap; from then on the argocd
+    # Application syncs the chart from git, and a later helm upgrade fails on
+    # resources it never created. A fresh setup's first run renders no
+    # Application (its CRD does not exist yet), so the second run still runs.
+    status:
+      - kubectl get application argocd -n argocd
+    cmds:
       - helm repo add argo https://argoproj.github.io/argo-helm --force-update
       - helm dependency build cluster/apps/argocd
-      - |
-        cat <<'EOF' | helm upgrade --install argocd cluster/apps/argocd \
-          --namespace argocd \
-          --force-conflicts \
-          --wait --timeout 5m \
-          --values /dev/stdin
-        argo-cd:
-          configs:
-            secret:
-              extra:
-                dex.github.clientID: "{{.GITHUB_OAUTH_CLIENT_ID}}"
-                dex.github.clientSecret: "{{.GITHUB_OAUTH_CLIENT_SECRET}}"
-        EOF
+      - helm upgrade --install argocd cluster/apps/argocd
+          --namespace argocd
+          --force-conflicts
+          --wait --timeout 5m
 
   db3000-secrets:
     desc: Create secrets for db3000 media apps (namespace must exist first)

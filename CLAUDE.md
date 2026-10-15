@@ -23,7 +23,8 @@ task components:traefik          # Install/upgrade Traefik (traefik namespace)
 task components:cert-manager     # Install/upgrade cert-manager (cert-manager namespace)
 task components:longhorn-secret  # Create Longhorn S3 backup secret
 task components:cloudflared-secret # Create Cloudflare Tunnel token secret (cloudflared namespace)
-task components:argocd           # Install/upgrade ArgoCD (argocd namespace)
+task components:argocd           # Create ArgoCD secrets; Helm-install ArgoCD only if it doesn't manage itself yet
+task components:argocd-secrets   # Create/update the repo key and GitHub OAuth secrets (argocd namespace)
 task components:db3000-secrets   # Create db3000 media app secrets
 task components:gitea-secrets    # Create Gitea admin + config secrets (gitea namespace)
 task components:cnpg-secrets     # Create CNPG S3 backup + pgAdmin credentials (cnpg-cluster namespace)
@@ -167,8 +168,9 @@ Internet → Cloudflare edge (proxied CNAME → <tunnel-id>.cfargotunnel.com)
 1. `kubectl scale statefulset argocd-application-controller -n argocd --replicas=0`
 2. Delete any old resources from the cluster that will be replaced (e.g., ApplicationSets, Applications)
 3. Make changes, commit, push to git
-4. `helm upgrade --install argocd cluster/apps/argocd -n argocd --force-conflicts --wait`
-5. `kubectl scale statefulset argocd-application-controller -n argocd --replicas=1`
+4. `kubectl scale statefulset argocd-application-controller -n argocd --replicas=1` — the `argocd` Application syncs the new chart from `main`
+
+**Helm installs ArgoCD only at bootstrap.** From then on the `argocd` Application owns the chart, and resources added by later chart versions carry no Helm ownership metadata, so `helm upgrade` on a running cluster fails with `exists and cannot be imported into the current release`. `task components:argocd` therefore skips the install once that Application exists (Taskfile `status:`) and only refreshes secrets. If the self-app itself can't sync, apply the chart under the controller's own field manager so ownership stays single: `helm template argocd cluster/apps/argocd -n argocd --api-versions argoproj.io/v1alpha1/Application --api-versions argoproj.io/v1alpha1/AppProject | kubectl apply --server-side --field-manager=argocd-controller --force-conflicts -f -`. The stale `argocd` Helm release (`helm list -n argocd`) is a bootstrap leftover: never `helm uninstall` it, as that deletes ArgoCD. Credentials stay out of Helm values: Dex reads GitHub OAuth from the `argocd-dex-github` Secret via `$argocd-dex-github:<key>` in `dex.config`, which ArgoCD resolves only for Secrets labelled `app.kubernetes.io/part-of: argocd`.
 
 **Replacing resource generators (ApplicationSets, app-of-apps charts):** Always delete the old generator from the cluster before removing its discovery sources from git. If you remove discovery files (e.g., config.json) while the old generator is still running, it will interpret "zero sources" as "delete all generated resources" and cascade-delete everything it manages — including CNI, ingress, and storage.
 
@@ -257,7 +259,7 @@ New design specs and implementation plans go in `docs/plans/` too, and stay ther
 
 **A Longhorn upgrade stalls while any node is NotReady.** The new `longhorn-manager` refuses to start until every old-version manager pod is gone, and `longhorn-driver-deployer` foreground-deletes the `longhorn-csi-plugin` DaemonSet before recreating it. Pods on a dead node stay `Terminating` forever, so both wait indefinitely: the manager crash-loops on `timed out while waiting for old Longhorn manager pods to be fully removed`, the deployer on `foreground deletion of daemon set longhorn-csi-plugin timed out`, and CSI is gone from every node. Attached volumes keep serving, but nothing can attach, detach or provision. Renovate therefore never automerges Longhorn (`renovate.json`); merge its PRs only when `kubectl get nodes` is all Ready. To recover a stalled upgrade, first confirm the dead node's containerd is down (`talosctl -n <ip> containers` refuses) and it holds no replicas (`kubectl get replicas.longhorn.io -n longhorn-system -o json | jq -r '.items[].spec.nodeID' | sort | uniq -c`). Then force-delete its `longhorn-manager-*` and `longhorn-csi-plugin-*` pods (`--force --grace-period=0`) and `kubectl rollout restart` the `csi-attacher`/`csi-provisioner`/`csi-resizer`/`csi-snapshotter` deployments to skip their crash-loop backoff. Finally, delete the failed `longhorn-post-upgrade` Job and trigger an explicit sync of the `longhorn` Application.
 
-**ArgoCD reaches GitHub over SSH on port 443** (`ssh://git@ssh.github.com:443/msnelling/talos-cluster.git`), not `github.com:22`. The UniFi gateway's IPS blocked one node's flows to `github.com:22` after the burst of fetches that follows a merge, which stopped manifest generation for every Application (`ComparisonError ... DeadlineExceeded`, repo-server logging `dial tcp ...:22: connect: connection timed out`). The URL must be byte-identical in the `argocd-repo-key` secret (`task components:argocd`), `repoURL` in `cluster/apps/argocd/values.yaml` and each `cluster/groups/*/values.yaml`, or ArgoCD finds no credentials for the Application. ArgoCD's default known_hosts already trusts `[ssh.github.com]:443`. To change the URL, merge first, then run `task components:argocd` from `main`: run from a branch, the `argocd` self-app reverts the parent Applications to `main` on its next fetch.
+**ArgoCD reaches GitHub over SSH on port 443** (`ssh://git@ssh.github.com:443/msnelling/talos-cluster.git`), not `github.com:22`. The UniFi gateway's IPS blocked one node's flows to `github.com:22` after the burst of fetches that follows a merge, which stopped manifest generation for every Application (`ComparisonError ... DeadlineExceeded`, repo-server logging `dial tcp ...:22: connect: connection timed out`). The URL must be byte-identical in the `argocd-repo-key` secret (`task components:argocd-secrets`), `repoURL` in `cluster/apps/argocd/values.yaml` and each `cluster/groups/*/values.yaml`, or ArgoCD finds no credentials for the Application. ArgoCD's default known_hosts already trusts `[ssh.github.com]:443`. To change the URL, merge first, then run `task components:argocd-secrets` from `main`. If ArgoCD can no longer fetch at all, patch the `argocd` Application's `spec.source.repoURL` and the `cluster` AppProject's `sourceRepos` to the merged value, and the self-app syncs the rest from `main`.
 
 **ArgoCD repo-server needs relaxed probe timeouts** when managing many charts. `helm dependency build` can take 26s+, exceeding the default 1s liveness probe timeout and causing CrashLoopBackOff (exit 137). The wrapper chart overrides `repoServer.livenessProbe.timeoutSeconds` and `periodSeconds`.
 
@@ -336,8 +338,8 @@ There is no pre-commit hook; CI is the only gate. CI runs on draft PRs as well, 
 | `cloudflare-api-token` | cert-manager | `task components:cert-manager` (from vars.yaml) |
 | `longhorn-s3-secret` | longhorn-system | `task components:longhorn-secret` (from vars.yaml) |
 | `cloudflared-tunnel-token` | cloudflared | `task components:cloudflared-secret` (from vars.yaml `cloudflare_tunnel_token`) |
-| `argocd-repo-key` | argocd | `task components:argocd` (from local `argocd-repo-key` file) |
-| `argocd-secret` (dex.github.clientSecret) | argocd | `task components:argocd` (from vars.yaml) |
+| `argocd-repo-key` | argocd | `task components:argocd-secrets` (from local `argocd-repo-key` file) |
+| `argocd-dex-github` | argocd | `task components:argocd-secrets` (from vars.yaml `github_oauth_client_id`/`github_oauth_client_secret`) |
 | `media-smb-creds` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `transmission-vpn-secrets` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
 | `transmission-proxy-credentials` | db3000 | `task components:db3000-secrets` (from vars.yaml) |
