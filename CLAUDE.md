@@ -311,6 +311,10 @@ New design specs and implementation plans go in `docs/plans/` too, and stay ther
 
 **Gitea chart templates `targetPort` from `gitea.config.server.HTTP_PORT`**, not from `service.http.targetPort`. This value must be explicitly set in the wrapper values or the Service renders with an empty targetPort that fails schema validation.
 
+**Removing a key from `gitea.config` does not remove it from Gitea.** The chart keeps `app.ini` on the PVC (`/data/gitea/conf/app.ini`) and its init container runs `gitea config edit-ini --apply-env`, which adds and updates keys but never deletes them. A renamed or deprecated setting therefore lingers next to its replacement, as `[migrations] ALLOWED_DOMAINS` did after the move to `ALLOWED_HOST_LIST`. To drop one, back up `app.ini`, delete the line in the running container (`kubectl exec -n gitea deploy/gitea -c gitea -- sed -i ...`), then `kubectl rollout restart deploy/gitea -n gitea`.
+
+**Gitea's version is pinned by `image.tag` in `cluster/apps/gitea/values.yaml`, not by the chart.** The chart's `appVersion` trails Gitea releases (chart 12.7.0 still defaults to 1.27.0, while Gitea has moved on to 28.x and dropped the `1.` prefix). The helper appends `-rootless` itself, so the tag is the plain version.
+
 **Always validate charts locally before pushing:** `helm dependency build <chart> && helm lint <chart> && helm template test <chart> | kubeconform -strict -ignore-missing-schemas -summary`
 
 **There is no test suite:** the chart validation above is the check for a change. To check every chart, run it over each one: `for c in cluster/*/*/; do helm dependency build "$c" && helm lint "$c" && helm template test "$c" | kubeconform -strict -ignore-missing-schemas -summary || break; done`. A change under `cluster/lib/` also needs every chart that consumes it validated, as CI does for `cluster/db3000/*`.
