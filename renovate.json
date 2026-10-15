@@ -2,6 +2,16 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "automerge": true,
   "automergeType": "pr",
+  "customManagers": [
+    {
+      "description": "Images in values.yaml whose parent key does not end in `image`, which helm-values never extracts. Annotate the tag with a `# renovate: datasource=... depName=...` line directly above it.",
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)values\\.ya?ml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+tag:\\s*\"?(?<currentValue>[^\"\\s]+)\"?"
+      ]
+    }
+  ],
   "packageRules": [
     {
       "description": "Require manual review for major version bumps",

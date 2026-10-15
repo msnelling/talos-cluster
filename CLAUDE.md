@@ -211,7 +211,7 @@ After deploying the observability stack, apply the logging patch with `task reco
 
 **`Chart.lock` and `charts/*.tgz` are gitignored** (`.gitignore`: `**/Chart.lock`, `**/charts/`). ArgoCD resolves dependencies from `Chart.yaml` at sync time, so a stale local `charts/*.tgz` makes `helm template` render the *old* subchart version — verify what's actually deployed with `kubectl`, not local render. To change a pinned dependency version, run `helm dependency update` (regenerates the lock from `Chart.yaml`); `helm dependency build` reuses the stale lock.
 
-**Renovate's helm-values manager only tracks an image when `repository` (and optional `registry`) sit beside `tag` in `values.yaml`.** When overriding a subchart's default image tag, restate `registry`/`repository` next to `tag` — a bare `tag:` is invisible to Renovate and the pin silently goes stale.
+**Renovate's helm-values manager only extracts an image whose parent key ends in `image`** (`image:`, `initImage:`), so a block under `runner:` or `dind:` is invisible however complete it is. For those, put `# renovate: datasource=docker depName=<registry>/<repository>` on the line directly above `tag:`; the regex custom manager in `renovate.json` reads it. Don't annotate an `image:` block, or the image is extracted twice. **Within an `image:` block, helm-values also needs `repository` (and optional `registry`) beside `tag`.** When overriding a subchart's default image tag, restate `registry`/`repository` next to `tag` — a bare `tag:` is invisible to Renovate and the pin silently goes stale.
 
 ## Design Documents
 
