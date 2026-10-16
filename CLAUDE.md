@@ -70,6 +70,7 @@ task setup:kubeconfig     # Retrieve and merge kubeconfig
 task db:status          # Show cluster health and backup status
 task db:backup          # Trigger an on-demand backup
 task db:backups         # List all backups with status
+task db:prune-backups   # Delete failed Backup records older than the recovery window
 task db:psql            # Open interactive psql shell on the primary
 task db:restore         # Full restore: pre-flight → delete → recover → resume ArgoCD
                         # Usage: task db:restore [-- "2026-02-26T14:30:00+00:00"]

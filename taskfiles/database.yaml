@@ -30,6 +30,25 @@ tasks:
     cmds:
       - kubectl get backups.postgresql.cnpg.io -n cnpg-cluster --sort-by=.metadata.creationTimestamp
 
+  prune-backups:
+    desc: Delete failed Backup records older than the recovery window (object storage is untouched)
+    cmds:
+      - |
+        CUTOFF=$(kubectl get objectstore cnpg-cluster-backup -n cnpg-cluster \
+          -o jsonpath='{.status.serverRecoveryWindow.cnpg-cluster.firstRecoverabilityPoint}')
+        if [ -z "$CUTOFF" ]; then
+          echo "ObjectStore cnpg-cluster-backup reports no recovery window; refusing to prune."
+          exit 1
+        fi
+        STALE=$(kubectl get backups.postgresql.cnpg.io -n cnpg-cluster -o json \
+          | jq -r --arg cutoff "$CUTOFF" \
+            '.items[] | select(.status.phase == "failed" and .metadata.creationTimestamp < $cutoff) | .metadata.name')
+        if [ -z "$STALE" ]; then
+          echo "No failed backups before $CUTOFF."
+          exit 0
+        fi
+        echo "$STALE" | xargs kubectl delete backups.postgresql.cnpg.io -n cnpg-cluster
+
   psql:
     desc: Open interactive psql shell on the primary
     deps: [_require-cnpg-plugin]
