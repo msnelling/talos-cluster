@@ -60,9 +60,15 @@ cnpg_preflight() {
     echo "  WARNING: Cluster is not healthy (phase: $cluster_phase)"
   fi
 
-  local first_recoverable
-  first_recoverable=$(kubectl get cluster "$CLUSTER_NAME" -n "$NAMESPACE" \
-    -o jsonpath='{.status.firstRecoverabilityPoint}' 2>/dev/null || echo "")
+  # The Barman Cloud plugin reports the recovery window on the ObjectStore,
+  # keyed by server name (the cluster name), not on the Cluster.
+  local object_store first_recoverable=""
+  object_store=$(kubectl get cluster "$CLUSTER_NAME" -n "$NAMESPACE" \
+    -o jsonpath='{.spec.plugins[?(@.name=="barman-cloud.cloudnative-pg.io")].parameters.barmanObjectName}' 2>/dev/null || echo "")
+  if [ -n "$object_store" ]; then
+    first_recoverable=$(kubectl get objectstore "$object_store" -n "$NAMESPACE" \
+      -o jsonpath="{.status.serverRecoveryWindow.$CLUSTER_NAME.firstRecoverabilityPoint}" 2>/dev/null || echo "")
+  fi
   if [ -n "$first_recoverable" ]; then
     echo "  Recovery window: $first_recoverable → now"
   else
