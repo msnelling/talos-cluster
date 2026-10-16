@@ -65,7 +65,7 @@ gitea:
         DEFAULT_ACTIONS_URL: github
       storage:
         STORAGE_TYPE: minio
-        MINIO_ENDPOINT: s3.xmple.io:9000
+        MINIO_ENDPOINT: s3.xmple.io:9100
         MINIO_USE_SSL: true
       mailer:
         ENABLED: true
