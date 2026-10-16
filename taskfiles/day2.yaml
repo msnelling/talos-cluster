@@ -265,3 +265,31 @@ tasks:
           ACTION_PAST: "reset"
           CMD_TEMPLATE: >-
             talosctl reset --context {{.CLUSTER_NAME}} --nodes "$NODE_IP" --graceful=false --reboot
+
+  prune-longhorn-backups:
+    desc: "Delete Longhorn backups of deleted volumes older than GRACE_DAYS (default 30); dry run unless -- --apply"
+    cmds:
+      - |
+        # Longhorn keeps a deleted volume's backups indefinitely so it can still be
+        # restored. Past the grace period they only hold storage. Deleting the
+        # BackupVolume removes its backups from the backup target.
+        GRACE_DAYS="${GRACE_DAYS:-30}"
+        LIVE=$(kubectl get volumes.longhorn.io -n longhorn-system -o json | jq -c '[.items[].metadata.name]')
+        ORPHANS=$(kubectl get backupvolumes.longhorn.io -n longhorn-system -o json \
+          | jq -r --argjson live "$LIVE" --argjson days "$GRACE_DAYS" '
+              .items[]
+              | select(.spec.volumeName | IN($live[]) | not)
+              | select((.status.lastBackupAt // "") != "" and .status.lastBackupAt < (now - $days * 86400 | todate))
+              | (.status.labels.KubernetesStatus // "{}" | fromjson) as $k
+              | "\(.metadata.name)\t\($k.namespace // "?")/\($k.pvcName // "?")\tlast backup \(.status.lastBackupAt)"')
+        if [ -z "$ORPHANS" ]; then
+          echo "No backups of deleted volumes older than $GRACE_DAYS days."
+          exit 0
+        fi
+        echo "Backups of deleted volumes older than $GRACE_DAYS days:"
+        echo "$ORPHANS" | sed 's/^/  /'
+        if [ "{{.CLI_ARGS}}" != "--apply" ]; then
+          echo "Dry run. Re-run with -- --apply to delete them."
+          exit 0
+        fi
+        echo "$ORPHANS" | cut -f1 | xargs kubectl delete backupvolumes.longhorn.io -n longhorn-system
