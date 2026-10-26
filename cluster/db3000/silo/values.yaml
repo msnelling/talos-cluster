@@ -28,10 +28,10 @@ redis:
 persistence:
   data:
     size: 30Gi
-    storageClass: longhorn
+    existingVolume: db3000-silo-data
   redis:
     size: 1Gi
-    storageClass: longhorn
+    existingVolume: db3000-silo-redis
   media:
     claimName: media-share
     mountPath: /mnt/media

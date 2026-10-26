@@ -1,4 +1,23 @@
 apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Values.persistence.data.existingVolume }}
+  labels:
+    {{- include "silo.labels" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.persistence.data.size }}
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOncePod
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: longhorn
+  csi:
+    driver: driver.longhorn.io
+    fsType: ext4
+    volumeHandle: {{ .Values.persistence.data.existingVolume }}
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ .Release.Name }}-data
@@ -7,10 +26,30 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOncePod
-  storageClassName: {{ .Values.persistence.data.storageClass }}
+  storageClassName: longhorn
+  volumeName: {{ .Values.persistence.data.existingVolume }}
   resources:
     requests:
       storage: {{ .Values.persistence.data.size }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Values.persistence.redis.existingVolume }}
+  labels:
+    {{- include "silo.labels" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.persistence.redis.size }}
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOncePod
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: longhorn
+  csi:
+    driver: driver.longhorn.io
+    fsType: ext4
+    volumeHandle: {{ .Values.persistence.redis.existingVolume }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -21,7 +60,8 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOncePod
-  storageClassName: {{ .Values.persistence.redis.storageClass }}
+  storageClassName: longhorn
+  volumeName: {{ .Values.persistence.redis.existingVolume }}
   resources:
     requests:
       storage: {{ .Values.persistence.redis.size }}

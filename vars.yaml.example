@@ -76,6 +76,13 @@ ghcr_pull_token: "ghp_your_classic_pat_with_read_packages"
 cnpg_s3_access_key: "your-cnpg-s3-access-key"
 cnpg_s3_secret_key: "your-cnpg-s3-secret-key"
 
+# Silo blob storage on the same MinIO (https://s3.xmple.io:9100).
+# Both buckets stay private. One user with read/write on silo-assets and
+# silo-private. Silo hands clients presigned URLs; it does not make either
+# bucket world-readable.
+silo_s3_access_key: "your-silo-s3-access-key"
+silo_s3_secret_key: "your-silo-s3-secret-key"
+
 # pgAdmin
 pgadmin_password: "your-pgadmin-password"
 
@@ -90,4 +97,3 @@ smtp_password: "your-smtp-password"
 smtp_from: "alerts@example.com"
 alert_email_to: "you@example.com"
 grafana_admin_password: "your-grafana-password"
-

@@ -35,7 +35,7 @@ task components:github-runner-secret  # Create GitHub App secret for ARC runners
 task components:monitoring-secrets    # Create SMTP and Grafana admin secrets (monitoring namespace)
 task components:recyclarr-secret      # Create Recyclarr API key secret (db3000 namespace)
 task components:plex-secret           # Create Plex token secret for the plex-audio-tracks CronJob (db3000 namespace)
-task components:silo-secret           # Create the Silo encryption key and CNPG connection secret (db3000 namespace)
+task components:silo-secret           # Create the Silo encryption key, CNPG connection, and S3 settings (db3000 namespace)
 ```
 
 Each Helm component task runs: `helm repo add` → `helm dependency build` → `helm upgrade --install` with `--force-conflicts` (required for Helm 4 SSA compatibility with ArgoCD).
@@ -364,6 +364,6 @@ There is no pre-commit hook; CI is the only gate. CI runs on draft PRs as well, 
 | `grafana-admin` | monitoring | `task components:monitoring-secrets` (from vars.yaml) |
 | `recyclarr-api-keys` | db3000 | `task components:recyclarr-secret` (reads API keys from the running Radarr/Sonarr pods) |
 | `plex-token` | db3000 | `task components:plex-secret` (reads `PlexOnlineToken` from the running Plex pod) |
-| `silo-secrets` | db3000 | `task components:silo-secret` (CNPG password from `silo-role-password`; `SECRET_KEY` generated once) |
+| `silo-secrets` | db3000 | `task components:silo-secret` (CNPG password from `silo-role-password`; `SECRET_KEY` generated once; S3 keys from vars.yaml, copied into Silo's `server_settings`) |
 
 Generate the deploy key with `ssh-keygen -t ed25519 -f argocd-repo-key -N ""` and add the public key as a read-only deploy key in GitHub repo settings.
