@@ -394,7 +394,7 @@ tasks:
     internal: true
     desc: Create CNPG managed role password secrets (idempotent, generates random passwords)
     vars:
-      ROLES: gitea authelia teslamate hass jellyseerr grafana
+      ROLES: gitea authelia teslamate hass jellyseerr grafana silo
     cmds:
       - |
         for ROLE in {{.ROLES}}; do
@@ -484,3 +484,96 @@ tasks:
         stringData:
           PLEX_TOKEN: "${TOKEN}"
         EOF
+
+  silo-secret:
+    desc: Create the Silo encryption key, CNPG connection, and S3 settings
+    deps: [cnpg-role-secrets]
+    cmds:
+      - |
+        set -euo pipefail
+        if ! kubectl get namespace db3000 >/dev/null 2>&1; then
+          echo "Namespace db3000 does not exist yet — sync the db3000 group before running this task" >&2
+          exit 1
+        fi
+        SILO_DB_PASS=$(kubectl get secret silo-role-password -n cnpg-cluster -o jsonpath='{.data.password}' | base64 -d)
+        if [ -z "${SILO_DB_PASS}" ]; then
+          echo "silo-role-password has no password" >&2
+          exit 1
+        fi
+        if kubectl get secret silo-secrets -n db3000 >/dev/null 2>&1; then
+          SECRET_KEY=$(kubectl get secret silo-secrets -n db3000 -o jsonpath='{.data.SECRET_KEY}' | base64 -d)
+        else
+          SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
+        fi
+        DATABASE_URL="postgres://silo:${SILO_DB_PASS}@cnpg-cluster-rw.cnpg-cluster.svc:5432/silo?sslmode=require"
+        if [ -z "{{.SILO_S3_ACCESS_KEY}}" ] || [ "{{.SILO_S3_ACCESS_KEY}}" = "null" ] \
+          || [ -z "{{.SILO_S3_SECRET_KEY}}" ] || [ "{{.SILO_S3_SECRET_KEY}}" = "null" ]; then
+          echo "Set silo_s3_access_key and silo_s3_secret_key in vars.yaml." >&2
+          exit 1
+        fi
+        cat <<EOF | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: silo-secrets
+          namespace: db3000
+        type: Opaque
+        stringData:
+          SECRET_KEY: "${SECRET_KEY}"
+          DATABASE_URL: "${DATABASE_URL}"
+          S3_ACCESS_KEY: "{{.SILO_S3_ACCESS_KEY}}"
+          S3_SECRET_KEY: "{{.SILO_S3_SECRET_KEY}}"
+        EOF
+        PRIMARY=$(kubectl get pod -n cnpg-cluster -l cnpg.io/cluster=cnpg-cluster,role=primary -o jsonpath='{.items[0].metadata.name}')
+        python3 - <<'PY' | kubectl exec -i -n cnpg-cluster "$PRIMARY" -c postgres -- psql -U postgres -d silo -v ON_ERROR_STOP=1
+        import subprocess, sys
+        def yq(key):
+            raw = subprocess.check_output(["yq", f".{key}", "vars.yaml"], text=True).strip()
+            if raw in ("", "null"):
+                sys.exit("Set silo_s3_access_key and silo_s3_secret_key in vars.yaml.")
+            return raw
+        access, secret = yq("silo_s3_access_key"), yq("silo_s3_secret_key")
+        endpoint = "https://s3.xmple.io:9100"
+        public_id = f"s3|{endpoint}|silo-assets|"
+        private_id = f"s3|{endpoint}|silo-private|"
+        def dollar(value):
+            tag = "silo"
+            while f"${tag}$" in value:
+                tag += "x"
+            return f"${tag}${value}${tag}$"
+        settings = {
+            "artwork.storage_backend": "s3",
+            "s3.public_endpoint": endpoint,
+            "s3.public_region": "us-east-1",
+            "s3.public_path_style": "true",
+            "s3.public_bucket": "silo-assets",
+            "s3.public_access_key": access,
+            "s3.public_secret_key": secret,
+            "s3.public_url_auth": "presigned",
+            "s3.private_endpoint": endpoint,
+            "s3.private_region": "us-east-1",
+            "s3.private_path_style": "true",
+            "s3.private_bucket": "silo-private",
+            "s3.private_access_key": access,
+            "s3.private_secret_key": secret,
+        }
+        print("DO $$")
+        print("DECLARE")
+        print("  assets text;")
+        print("  operational text;")
+        print("BEGIN")
+        print("  SELECT value INTO assets FROM server_settings WHERE key = 'artwork.storage_identity';")
+        print("  SELECT value INTO operational FROM server_settings WHERE key = 'storage.operational_identity';")
+        print(f"  IF assets IS NOT NULL AND assets <> {dollar(public_id)} THEN")
+        print("    RAISE EXCEPTION 'artwork storage is already recorded as %', assets;")
+        print("  END IF;")
+        print(f"  IF operational IS NOT NULL AND operational <> {dollar(private_id)} THEN")
+        print("    RAISE EXCEPTION 'private storage is already recorded as %', operational;")
+        print("  END IF;")
+        for key, value in settings.items():
+            print(f"  INSERT INTO server_settings (key, value) VALUES ({dollar(key)}, {dollar(value)})")
+            print("  ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;")
+        print("END $$;")
+        PY
+        kubectl rollout restart deployment/silo -n db3000 >/dev/null
+        echo "Applied silo-secrets and S3 settings for silo-assets and silo-private. Back SECRET_KEY up separately from database dumps."

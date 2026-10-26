@@ -1,0 +1,4 @@
+apiVersion: v2
+name: silo
+version: 0.1.0
+description: Silo media server, using the shared CNPG Postgres and a Redis sidecar

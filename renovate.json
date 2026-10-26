@@ -4,7 +4,7 @@
   "automergeType": "pr",
   "customManagers": [
     {
-      "description": "Images in values.yaml whose parent key does not end in `image`, which helm-values never extracts. Annotate the tag with a `# renovate: datasource=... depName=...` line directly above it.",
+      "description": "Images whose parent key does not end in `image`. Annotate the tag with `# renovate: datasource=... depName=...` on the line above it.",
       "customType": "regex",
       "managerFilePatterns": ["/(^|/)values\\.ya?ml$/"],
       "matchStrings": [
@@ -38,6 +38,12 @@
         "ghcr.io/linuxserver/transmission"
       ],
       "allowedVersions": "!/^20\\d{2}\\./"
+    },
+    {
+      "description": "Silo is pre-release and publishes a new build tag many times a day. Bump cluster/db3000/silo/values.yaml by hand.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/silo-server/silo-server"],
+      "enabled": false
     }
   ]
 }

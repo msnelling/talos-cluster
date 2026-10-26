@@ -18,6 +18,8 @@ apps:
     path: cluster/db3000/bazarr
   - name: jellyfin
     path: cluster/db3000/jellyfin
+  - name: silo
+    path: cluster/db3000/silo
   - name: seerr
     path: cluster/db3000/seerr
   - name: media-storage

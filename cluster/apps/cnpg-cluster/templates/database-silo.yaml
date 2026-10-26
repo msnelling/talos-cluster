@@ -1,0 +1,17 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: silo
+  namespace: {{ .Release.Namespace }}
+spec:
+  name: silo
+  owner: silo
+  cluster:
+    name: cnpg-cluster
+  # Silo migrates as this role and runs CREATE EXTENSION IF NOT EXISTS.
+  # Creating them here, as the operator, makes that a no-op for vector,
+  # which a non-superuser cannot install.
+  extensions:
+    - name: vector
+    - name: pg_trgm
+    - name: citext
