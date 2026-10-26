@@ -1,0 +1,55 @@
+image:
+  repository: ghcr.io/silo-server/silo-server
+  # Pre-release. build-N matches the upstream `latest` image; bump it by hand.
+  tag: "build-1705"
+  pullPolicy: IfNotPresent
+
+existingSecret: silo-secrets
+
+# POSTGRES_TUNE=auto runs ALTER SYSTEM. This database is the shared CNPG
+# cluster, so tuning stays off.
+env:
+  TZ: Europe/London
+  MODE: integrated
+  REDIS_URL: redis://127.0.0.1:6379
+  SILO_PLUGIN_CACHE_DIR: /var/lib/silo/plugins
+  POSTGRES_TUNE: "off"
+
+redis:
+  image:
+    repository: redis
+    tag: "8.8.3-alpine"
+  resources:
+    requests:
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+persistence:
+  data:
+    size: 30Gi
+    storageClass: longhorn
+  redis:
+    size: 1Gi
+    storageClass: longhorn
+  media:
+    claimName: media-share
+    mountPath: /mnt/media
+
+service:
+  port: 80
+
+httproute:
+  hostname: silo.xmple.io
+
+nodeSelector:
+  gpu.intel.com/device-id.0300-3e92.present: "true"
+
+resources:
+  requests:
+    memory: 4Gi
+  limits:
+    memory: 4Gi
+    gpu.intel.com/i915: "1"
+
+terminationGracePeriodSeconds: 120

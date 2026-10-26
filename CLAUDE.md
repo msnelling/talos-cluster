@@ -28,13 +28,14 @@ task components:argocd-secrets   # Create/update the repo key and GitHub OAuth s
 task components:db3000-secrets   # Create db3000 media app secrets
 task components:gitea-secrets    # Create Gitea admin + config secrets (gitea namespace)
 task components:cnpg-secrets     # Create CNPG S3 backup + pgAdmin credentials (cnpg-cluster namespace)
-task components:cnpg-role-secrets # (internal) Create CNPG managed role password secrets — runs automatically as dep of db3000-secrets/gitea-secrets
+task components:cnpg-role-secrets # (internal) Create CNPG managed role password secrets — runs automatically as dep of db3000-secrets/gitea-secrets/silo-secret
 task components:renovate-secret  # Create Renovate GitHub App secret
 task components:runner-token     # Create Gitea runner registration token secret (gitea-runner namespace)
 task components:github-runner-secret  # Create GitHub App secret for ARC runners (github-arc-runner namespace)
 task components:monitoring-secrets    # Create SMTP and Grafana admin secrets (monitoring namespace)
 task components:recyclarr-secret      # Create Recyclarr API key secret (db3000 namespace)
 task components:plex-secret           # Create Plex token secret for the plex-audio-tracks CronJob (db3000 namespace)
+task components:silo-secret           # Create the Silo encryption key and CNPG connection secret (db3000 namespace)
 ```
 
 Each Helm component task runs: `helm repo add` → `helm dependency build` → `helm upgrade --install` with `--force-conflicts` (required for Helm 4 SSA compatibility with ArgoCD).
@@ -86,7 +87,7 @@ task db:restore-verify  # Non-destructive DR test: restore to temp cluster, vali
 
 Tasks are split into domain-grouped files under `taskfiles/` with namespaced includes:
 - `taskfiles/setup.yaml` -- cluster provisioning (download, generate, patch, apply, bootstrap, kubeconfig)
-- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, gateway-api, traefik, cert-manager, longhorn-secret, cloudflared-secret, argocd, gitea-secrets, cnpg-secrets, db3000-secrets, renovate-secret, recyclarr-secret, plex-secret; cnpg-role-secrets is internal, runs as dep of gitea-secrets/db3000-secrets)
+- `taskfiles/components.yaml` -- Helm component installs and secrets (cilium, gateway-api, traefik, cert-manager, longhorn-secret, cloudflared-secret, argocd, gitea-secrets, cnpg-secrets, db3000-secrets, renovate-secret, recyclarr-secret, plex-secret, silo-secret; cnpg-role-secrets is internal, runs as dep of gitea-secrets/db3000-secrets)
 - `taskfiles/day2.yaml` -- ongoing operations (upgrade-talos, upgrade-k8s, join-node, reboot, reset)
 - `taskfiles/database.yaml` -- CNPG PostgreSQL operations (status, backup, restore, psql)
 - `taskfiles/utility.yaml` -- diagnostics (status, dashboard, disks, links, plex-audio-tracks)
@@ -352,7 +353,7 @@ There is no pre-commit hook; CI is the only gate. CI runs on draft PRs as well, 
 | `seerr-db-secrets` | db3000 | `task components:db3000-secrets` (reads password from `jellyseerr-role-password` in cnpg-cluster) |
 | `gitea-admin-secret` | gitea | `task components:gitea-secrets` (from vars.yaml) |
 | `gitea-config-secrets` | gitea | `task components:gitea-secrets` (reads DB password from `gitea-role-password` in cnpg-cluster) |
-| `{role}-role-password` | cnpg-cluster | internal `cnpg-role-secrets` task (auto-generated, runs as dep of db3000-secrets/gitea-secrets/monitoring-secrets) |
+| `{role}-role-password` | cnpg-cluster | internal `cnpg-role-secrets` task (auto-generated, runs as dep of db3000-secrets/gitea-secrets/monitoring-secrets/silo-secret) |
 | `grafana-db-secrets` | monitoring | `task components:monitoring-secrets` (reads password from `grafana-role-password` in cnpg-cluster) |
 | `cnpg-s3-creds` | cnpg-cluster | `task components:cnpg-secrets` (from vars.yaml) |
 | `pgadmin-credentials` | cnpg-cluster | `task components:cnpg-secrets` (from vars.yaml) |
@@ -363,5 +364,6 @@ There is no pre-commit hook; CI is the only gate. CI runs on draft PRs as well, 
 | `grafana-admin` | monitoring | `task components:monitoring-secrets` (from vars.yaml) |
 | `recyclarr-api-keys` | db3000 | `task components:recyclarr-secret` (reads API keys from the running Radarr/Sonarr pods) |
 | `plex-token` | db3000 | `task components:plex-secret` (reads `PlexOnlineToken` from the running Plex pod) |
+| `silo-secrets` | db3000 | `task components:silo-secret` (CNPG password from `silo-role-password`; `SECRET_KEY` generated once) |
 
 Generate the deploy key with `ssh-keygen -t ed25519 -f argocd-repo-key -N ""` and add the public key as a read-only deploy key in GitHub repo settings.

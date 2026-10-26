@@ -394,7 +394,7 @@ tasks:
     internal: true
     desc: Create CNPG managed role password secrets (idempotent, generates random passwords)
     vars:
-      ROLES: gitea authelia teslamate hass jellyseerr grafana
+      ROLES: gitea authelia teslamate hass jellyseerr grafana silo
     cmds:
       - |
         for ROLE in {{.ROLES}}; do
@@ -484,3 +484,37 @@ tasks:
         stringData:
           PLEX_TOKEN: "${TOKEN}"
         EOF
+
+  silo-secret:
+    desc: Create the Silo encryption key and CNPG connection secret (db3000 namespace)
+    deps: [cnpg-role-secrets]
+    cmds:
+      - |
+        set -euo pipefail
+        if ! kubectl get namespace db3000 >/dev/null 2>&1; then
+          echo "Namespace db3000 does not exist yet — sync the db3000 group before running this task" >&2
+          exit 1
+        fi
+        SILO_DB_PASS=$(kubectl get secret silo-role-password -n cnpg-cluster -o jsonpath='{.data.password}' | base64 -d)
+        if [ -z "${SILO_DB_PASS}" ]; then
+          echo "silo-role-password has no password" >&2
+          exit 1
+        fi
+        if kubectl get secret silo-secrets -n db3000 >/dev/null 2>&1; then
+          SECRET_KEY=$(kubectl get secret silo-secrets -n db3000 -o jsonpath='{.data.SECRET_KEY}' | base64 -d)
+        else
+          SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
+        fi
+        DATABASE_URL="postgres://silo:${SILO_DB_PASS}@cnpg-cluster-rw.cnpg-cluster.svc:5432/silo?sslmode=require"
+        cat <<EOF | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: silo-secrets
+          namespace: db3000
+        type: Opaque
+        stringData:
+          SECRET_KEY: "${SECRET_KEY}"
+          DATABASE_URL: "${DATABASE_URL}"
+        EOF
+        echo "Applied secret silo-secrets. Back SECRET_KEY up separately from database dumps; losing it makes stored credentials unreadable."

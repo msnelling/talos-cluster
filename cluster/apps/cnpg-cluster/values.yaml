@@ -40,6 +40,7 @@ managedRoles:
   - name: jellyseerr
   - name: grafana
     createdb: true
+  - name: silo
 
 backup:
   endpointURL: "https://s3.xmple.io:9100"
