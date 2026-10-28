@@ -1,7 +1,7 @@
 image:
   registry: ghcr.io
   repository: recyclarr/recyclarr
-  tag: "8.8.0"
+  tag: "8.8.1"
   pullPolicy: IfNotPresent
 
 # Runs weekly. Scores only affect new grabs and manual searches, so a
