@@ -2,6 +2,7 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "automerge": true,
   "automergeType": "pr",
+  "timezone": "Europe/London",
   "customManagers": [
     {
       "description": "Images whose parent key does not end in `image`. Annotate the tag with `# renovate: datasource=... depName=...` on the line above it.",
@@ -40,10 +41,10 @@
       "allowedVersions": "!/^20\\d{2}\\./"
     },
     {
-      "description": "Silo is pre-release and publishes a new build tag many times a day. Bump cluster/db3000/silo/values.yaml by hand.",
+      "description": "Silo is pre-release and republishes latest many times a day: take one digest update a day",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["ghcr.io/silo-server/silo-server"],
-      "enabled": false
+      "schedule": ["* 6 * * *"]
     }
   ]
 }
