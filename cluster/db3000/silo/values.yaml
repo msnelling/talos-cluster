@@ -14,6 +14,10 @@ env:
   REDIS_URL: redis://127.0.0.1:6379
   SILO_PLUGIN_CACHE_DIR: /var/lib/silo/plugins
   POSTGRES_TUNE: "off"
+  # The media share only admits this account (mount options on the
+  # db3000-media-share PV). Silo re-owns its data volume to match at startup.
+  PUID: "568"
+  PGID: "1001"
 
 redis:
   image:
