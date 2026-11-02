@@ -41,12 +41,6 @@ gha-runner-scale-set:
       # directly instead of transitively via the work PVC's nodeAffinity.
       nodeSelector:
         xmple.io/disk-type: nvme
-      # The image above is a private GHCR package. GHCR accepts only classic
-      # PATs, so this secret holds one scoped to read:packages -- created out of
-      # band by `task components:github-runner-pull-secret`, matching how
-      # github-arc-app is created rather than living in git.
-      imagePullSecrets:
-        - name: ghcr-pull
       securityContext:
         fsGroup: 1001
       containers:
@@ -62,6 +56,7 @@ gha-runner-scale-set:
           # `gyp ERR! not found: make` without this. Built from
           # sociaei/socia-ci-runners runner-arc/Dockerfile, which changes
           # nothing else: same runner user, same /home/runner/run.sh contract.
+          # The package is public, so pods pull it anonymously.
           image: ghcr.io/sociaei/socia-ci-runner-arc:latest
           command: ["/home/runner/run.sh"]
           env:
