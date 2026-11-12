@@ -1,7 +1,7 @@
 image:
   repository: ghcr.io/silo-server/silo-server
   # Pre-release with no versioned tags, so track `latest` by digest; Renovate updates the digest.
-  tag: "latest@sha256:20126d9aadaea6653de9643de443f23d837bbac862811f6eb63c07b47f2895c3"
+  tag: "latest@sha256:0a76ab3481667ef2ddd06e26fb40412fabbc7006bad99bfdbb51300ba34800dd"
   pullPolicy: IfNotPresent
 
 existingSecret: silo-secrets
