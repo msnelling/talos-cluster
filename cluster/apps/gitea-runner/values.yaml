@@ -16,7 +16,7 @@ actions:
       registry: docker.gitea.com
       repository: runner
       # renovate: datasource=docker depName=docker.gitea.com/runner
-      tag: "6.0.0"
+      tag: "6.0.1"
       config: |
         log:
           level: info
